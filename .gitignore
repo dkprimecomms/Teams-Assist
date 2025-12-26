@@ -12,7 +12,8 @@ dist
 dist-ssr
 *.local
 manifest/
-Backend/
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
