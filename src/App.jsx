@@ -74,27 +74,30 @@ export default function App() {
     setBackendStatus("Calling backend /whoami …");
 
     try {
-      const base = (API_BASE_URL || "").replace(/\/+$/, "");
+     const base = (API_BASE_URL || "").replace(/\/+$/, "");
 const res = await fetch(`${base}/whoami`, {
-  method: "GET",
-  headers: { Authorization: `Bearer ${ssoToken}` },
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ token: ssoToken }),
 });
 
-      const text = await res.text();
-      setBackendStatus(`Backend HTTP ${res.status}`);
+        const text = await res.text();
+        setBackendStatus(`Backend HTTP ${res.status}`);
 
-      // Pretty-print JSON if possible
-      try {
-        const json = JSON.parse(text);
-        setBackendResponse(JSON.stringify(json, null, 2));
-      } catch {
-        setBackendResponse(text);
+        // Pretty-print JSON if possible
+        try {
+          const json = JSON.parse(text);
+          setBackendResponse(JSON.stringify(json, null, 2));
+        } catch {
+          setBackendResponse(text);
+        }
+      } catch (e) {
+        setBackendStatus("❌ Backend call failed (likely CORS or network)");
+        setError(String(e?.message || e));
       }
-    } catch (e) {
-      setBackendStatus("❌ Backend call failed (likely CORS or network)");
-      setError(String(e?.message || e));
     }
-  }
 
   async function refreshTokenAndCallBackend() {
     setError("");
