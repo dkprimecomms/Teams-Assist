@@ -1,379 +1,206 @@
-import { useEffect, useMemo, useState } from "react";
-import * as microsoftTeams from "@microsoft/teams-js";
-
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2) return null;
-
-    // JWT uses base64url, convert to base64
-    const b64url = parts[1];
-    const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
-
-    const json = atob(padded);
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-async function getTeamsSsoToken() {
-  await microsoftTeams.app.initialize();
-
-  return new Promise((resolve, reject) => {
-    microsoftTeams.authentication.getAuthToken({
-      successCallback: (token) => resolve(token),
-      failureCallback: (err) => reject(err),
-    });
-  });
-}
-
-function classifyMeeting(event) {
-  const isCancelled = !!event.isCancelled;
-
-  // Graph may return dateTime without timezone; still parseable
-  const start = new Date(event?.start?.dateTime);
-  const end = new Date(event?.end?.dateTime);
-  const now = new Date();
-
-  if (isCancelled) return "Skipped";
-  if (!isNaN(end) && end < now) return "Completed";
-  if (!isNaN(start) && start > now) return "Scheduled";
-  return "Scheduled";
-}
+// src/App.js
+import React, { useEffect, useMemo, useState } from "react";
+import "./App.css";
+import MeetingsSidebar from "./components/sidebar/MeetingsSidebar";
+import MainLayout from "./components/main/MainLayout";
+import { fetchInvitees } from "./api/participantsApi";
+import { fetchMeetingsByStatus } from "./api/meetingsApi";
+import { fetchTranscript } from "./api/transcriptApi";
 
 export default function App() {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Lambda Function URL
-
-  const [status, setStatus] = useState("Starting…");
-  const [token, setToken] = useState("");
-  const [claims, setClaims] = useState(null);
-
-  const [backendStatus, setBackendStatus] = useState("");
-  const [backendResponse, setBackendResponse] = useState("");
-  const [error, setError] = useState("");
+  const [statusTab, setStatusTab] = useState("upcoming"); // "upcoming" | "completed" | "skipped"
+  const [selectedMeetingId, setSelectedMeetingId] = useState("");
 
   const [meetings, setMeetings] = useState([]);
+  const [loadingMeetings, setLoadingMeetings] = useState(false);
+  const [meetingsError, setMeetingsError] = useState("");
 
-  // Transcript UI
-  const [transcriptStatus, setTranscriptStatus] = useState("");
+  const [participants, setParticipants] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState("");
+
   const [transcriptText, setTranscriptText] = useState("");
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
 
-  const tokenSummary = useMemo(() => {
-    if (!token) return "";
-    return `Token length: ${token.length}\nAud: ${claims?.aud || ""}\nUPN: ${claims?.preferred_username || ""}`;
-  }, [token, claims]);
+  // Load meetings for the selected status tab
+  useEffect(() => {
+    let cancelled = false;
 
-  const claimsPretty = useMemo(() => {
-    if (!claims) return "";
-    const subset = {
-      aud: claims.aud,
-      iss: claims.iss,
-      tid: claims.tid,
-      oid: claims.oid,
-      name: claims.name,
-      upn: claims.preferred_username,
-      scp: claims.scp,
-      roles: claims.roles,
-      exp: claims.exp,
-    };
-    return JSON.stringify(subset, null, 2);
-  }, [claims]);
+    async function load() {
+      setLoadingMeetings(true);
+      setMeetingsError("");
+      try {
+        const items = await fetchMeetingsByStatus(statusTab);
 
-  async function postJson(path, bodyObj) {
-    if (!API_BASE_URL) {
-      setBackendStatus("❌ VITE_API_BASE_URL not set");
-      setBackendResponse("Add VITE_API_BASE_URL in your .env and redeploy/restart.");
-      return { ok: false };
-    }
+        // Normalize: keep placeholders for now; transcript loaded separately
+        const normalized = (items || []).map((m) => ({
+          ...m,
+          participants: m.participants || [],
+          transcript: m.transcript || "",
+          summary: m.summary || "",
+          joinWebUrl: m.joinWebUrl || "", // ✅ required for transcript
+        }));
 
-    const base = (API_BASE_URL || "").replace(/\/+$/, "");
-    const res = await fetch(`${base}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyObj),
-    });
-
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
-    }
-    return { res, data };
-  }
-
-  async function callBackendWhoAmI(ssoToken) {
-    setError("");
-    setBackendResponse("");
-    setBackendStatus("Calling backend /whoami …");
-
-    try {
-      const { res, data } = await postJson("/whoami", { token: ssoToken });
-      if (!res) return;
-
-      setBackendStatus(`Backend HTTP ${res.status}`);
-      setBackendResponse(JSON.stringify(data, null, 2));
-    } catch (e) {
-      setBackendStatus("❌ Backend call failed");
-      setError(String(e?.message || e));
-    }
-  }
-
-  async function callBackendGraphMe(ssoToken) {
-    setError("");
-    setBackendResponse("");
-    setBackendStatus("Calling backend /graph/me …");
-
-    try {
-      const { res, data } = await postJson("/graph/me", { token: ssoToken });
-      if (!res) return;
-
-      setBackendStatus(`Backend HTTP ${res.status}`);
-      setBackendResponse(JSON.stringify(data, null, 2));
-    } catch (e) {
-      setBackendStatus("❌ Backend call failed");
-      setError(String(e?.message || e));
-    }
-  }
-
-  async function loadMeetings(ssoToken) {
-    setError("");
-    setBackendResponse("");
-    setBackendStatus("Loading meetings (/graph/events) …");
-
-    // Example range: last 14 days to next 14 days
-    const now = new Date();
-    const start = new Date(now);
-    start.setDate(now.getDate() - 14);
-    const end = new Date(now);
-    end.setDate(now.getDate() + 14);
-
-    try {
-      const { res, data } = await postJson("/graph/events", {
-        token: ssoToken,
-        startISO: start.toISOString(),
-        endISO: end.toISOString(),
-      });
-      if (!res) return;
-
-      setBackendStatus(`Meetings HTTP ${res.status}`);
-
-      if (!res.ok || !data.ok) {
-        setBackendResponse(JSON.stringify(data, null, 2));
-        return;
+        if (!cancelled) {
+          setMeetings(normalized);
+          setSelectedMeetingId(normalized?.[0]?.id || "");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setMeetings([]);
+          setSelectedMeetingId("");
+          setMeetingsError(String(e?.message || e));
+        }
+      } finally {
+        if (!cancelled) setLoadingMeetings(false);
       }
-
-      const list = data.value || [];
-      setMeetings(list);
-      setBackendResponse(`Loaded ${list.length} events`);
-    } catch (e) {
-      setBackendStatus("❌ Meetings load failed");
-      setError(String(e?.message || e));
     }
-  }
 
-  async function loadTranscriptForMeeting(meeting) {
-    setError("");
-    setTranscriptStatus("Loading transcript…");
-    setTranscriptText("");
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [statusTab]);
 
-    const joinWebUrl = meeting?.onlineMeeting?.joinUrl;
-    if (!joinWebUrl) {
-      setTranscriptStatus("❌ This meeting has no onlineMeeting.joinUrl (cannot fetch transcript).");
+  // Keep selection valid when list changes / tab changes
+  useEffect(() => {
+    const stillValid = meetings.find((m) => m.id === selectedMeetingId && m.status === statusTab);
+    if (stillValid) return;
+
+    const first = meetings.find((m) => m.status === statusTab);
+    setSelectedMeetingId(first ? first.id : "");
+  }, [statusTab, meetings, selectedMeetingId]);
+
+  // Load invitees for the selected meeting (we return [] for now in participantsApi)
+  useEffect(() => {
+    if (!selectedMeetingId) return;
+
+    let cancelled = false;
+
+    async function loadInvitees() {
+      setParticipantsLoading(true);
+      setParticipantsError("");
+      try {
+        const data = await fetchInvitees(selectedMeetingId);
+        if (!cancelled) setParticipants(data || []);
+      } catch (e) {
+        if (!cancelled) {
+          setParticipants([]);
+          setParticipantsError(String(e?.message || e));
+        }
+      } finally {
+        if (!cancelled) setParticipantsLoading(false);
+      }
+    }
+
+    loadInvitees();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMeetingId]);
+
+  // Load transcript only for completed meetings
+  useEffect(() => {
+    if (!selectedMeetingId) return;
+
+    const m = meetings.find((x) => x.id === selectedMeetingId);
+    if (!m || m.status !== "completed") {
+      setTranscriptText("");
+      setTranscriptLoading(false);
       return;
     }
 
-    try {
-      const { res, data } = await postJson("/graph/transcript", {
-        token,
-        joinWebUrl,
-      });
+    if (!m.joinWebUrl) {
+      setTranscriptText("No join link found for this meeting (cannot fetch transcript).");
+      setTranscriptLoading(false);
+      return;
+    }
 
-      if (!res) return;
+    let cancelled = false;
 
-      if (!res.ok || !data.ok) {
-        setTranscriptStatus(`Transcript HTTP ${res.status}`);
-        setTranscriptText(JSON.stringify(data, null, 2));
-        return;
+    (async () => {
+      setTranscriptLoading(true);
+      setTranscriptText("");
+
+      try {
+        // ✅ IMPORTANT: transcript is fetched using joinWebUrl (not meeting id)
+        const vtt = await fetchTranscript(m.joinWebUrl);
+        if (!cancelled) setTranscriptText(vtt || "");
+      } catch (e) {
+        if (!cancelled) setTranscriptText(`Transcript load failed: ${String(e?.message || e)}`);
+      } finally {
+        if (!cancelled) setTranscriptLoading(false);
       }
+    })();
 
-      setTranscriptStatus("✅ Transcript loaded (VTT)");
-      setTranscriptText(data.vtt || "");
-    } catch (e) {
-      setTranscriptStatus("❌ Transcript fetch failed");
-      setError(String(e?.message || e));
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMeetingId, meetings]);
 
-  async function refreshToken() {
-    setError("");
-    setBackendResponse("");
-    setBackendStatus("");
-    setTranscriptStatus("");
-    setTranscriptText("");
+  // Selected meeting object from list
+  const selectedRaw = useMemo(
+    () => meetings.find((m) => m.id === selectedMeetingId) || null,
+    [meetings, selectedMeetingId]
+  );
 
-    try {
-      setStatus("Initializing Teams SDK…");
-      const tok = await getTeamsSsoToken();
-      setToken(tok);
+  // Merge transcript + participants into selected
+  const selected = useMemo(() => {
+    if (!selectedRaw) return null;
 
-      const decoded = decodeJwtPayload(tok);
-      setClaims(decoded);
-
-      setStatus("✅ SSO OK (token received)");
-
-      // Default: verify backend token route once
-      await callBackendWhoAmI(tok);
-    } catch (e) {
-      setStatus("❌ SSO FAILED");
-      setError(typeof e === "string" ? e : JSON.stringify(e));
-    }
-  }
-
-  useEffect(() => {
-    refreshToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return {
+      ...selectedRaw,
+      participants: participants || [],
+      transcript: transcriptLoading
+        ? "Loading transcript…"
+        : transcriptText || selectedRaw.transcript || "",
+    };
+  }, [selectedRaw, participants, transcriptText, transcriptLoading]);
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui, sans-serif", maxWidth: 980 }}>
-      <h2 style={{ margin: 0 }}>TeamsAssist</h2>
-      <div style={{ opacity: 0.7, marginBottom: 12 }}>
-        SSO works only when opened inside Microsoft Teams as a tab.
-      </div>
+    <div className="h-screen w-full bg-slate-50">
+      <div className="h-full grid grid-cols-[320px_1fr]">
+        {/* Sidebar */}
+        <div className="relative">
+          <MeetingsSidebar
+            statusTab={statusTab}
+            setStatusTab={setStatusTab}
+            meetings={meetings}
+            selectedMeetingId={selectedMeetingId}
+            setSelectedMeetingId={setSelectedMeetingId}
+          />
 
-      {/* SSO Card */}
-      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>SSO</h3>
-
-        <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-          {status}
-          {"\n"}
-          {tokenSummary}
-        </pre>
-
-        {claims && (
-          <>
-            <div style={{ marginTop: 10, fontWeight: 600 }}>Decoded token (selected claims)</div>
-            <pre style={{ whiteSpace: "pre-wrap", background: "#fafafa", padding: 10, borderRadius: 8 }}>
-              {claimsPretty}
-            </pre>
-          </>
-        )}
-
-        {error && (
-          <>
-            <div style={{ marginTop: 10, fontWeight: 600, color: "crimson" }}>Error</div>
-            <pre style={{ whiteSpace: "pre-wrap", background: "#fff5f5", padding: 10, borderRadius: 8 }}>
-              {error}
-            </pre>
-          </>
-        )}
-      </div>
-
-      {/* Backend Card */}
-      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Backend (Lambda Function URL)</h3>
-
-        <div style={{ marginBottom: 8 }}>
-          API Base: <code>{API_BASE_URL ? API_BASE_URL : "Set VITE_API_BASE_URL in .env"}</code>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-          <button
-            onClick={() => token && callBackendWhoAmI(token)}
-            disabled={!token}
-            style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
-          >
-            Verify Token (/whoami)
-          </button>
-
-          <button
-            onClick={() => token && callBackendGraphMe(token)}
-            disabled={!token}
-            style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
-          >
-            Test Graph (/graph/me)
-          </button>
-
-          <button
-            onClick={() => token && loadMeetings(token)}
-            disabled={!token}
-            style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
-          >
-            Load Meetings
-          </button>
-
-          <button onClick={refreshToken} style={{ padding: "8px 12px", cursor: "pointer" }}>
-            Refresh Token
-          </button>
-        </div>
-
-        <div style={{ fontWeight: 600 }}>{backendStatus || "Waiting…"}</div>
-
-        <pre style={{ whiteSpace: "pre-wrap", background: "#fafafa", padding: 10, borderRadius: 8, marginTop: 8 }}>
-          {backendResponse || "(no response yet)"}
-        </pre>
-
-        {meetings.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <h4 style={{ margin: "12px 0 8px" }}>Meetings ({meetings.length})</h4>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              {meetings.map((m) => {
-                const label = classifyMeeting(m);
-                const joinUrl = m?.onlineMeeting?.joinUrl;
-
-                return (
-                  <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                      <div style={{ fontWeight: 600 }}>{m.subject || "(no subject)"}</div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
-                    </div>
-
-                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>
-                      {m.start?.dateTime} → {m.end?.dateTime}
-                    </div>
-
-                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
-                      Cancelled: {String(!!m.isCancelled)}
-                    </div>
-
-                    {m.onlineMeetingProvider && (
-                      <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
-                        Online: {m.onlineMeetingProvider}
-                      </div>
-                    )}
-
-                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
-                      Join URL: {joinUrl ? "✅ Present" : "❌ Missing"}
-                    </div>
-
-                    <button
-                      onClick={() => loadTranscriptForMeeting(m)}
-                      style={{ padding: "6px 10px", cursor: "pointer", marginTop: 8 }}
-                    >
-                      View Transcript
-                    </button>
-                  </div>
-                );
-              })}
+          {/* Loading + error overlay (small, non-blocking) */}
+          {loadingMeetings && (
+            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
+              Loading meetings...
             </div>
-          </div>
-        )}
+          )}
 
-        {transcriptStatus && (
-          <div style={{ marginTop: 12 }}>
-            <h4 style={{ margin: "12px 0 8px" }}>Transcript</h4>
-            <div style={{ fontWeight: 600 }}>{transcriptStatus}</div>
-            <pre style={{ whiteSpace: "pre-wrap", background: "#fafafa", padding: 10, borderRadius: 8, marginTop: 8 }}>
-              {transcriptText || "(no transcript yet)"}
-            </pre>
-          </div>
-        )}
+          {meetingsError && (
+            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
+              {meetingsError}
+            </div>
+          )}
+        </div>
+
+        {/* Main */}
+        <div className="relative">
+          <MainLayout selected={selected} />
+
+          {/* Optional participants loading/errors as small non-blocking overlays */}
+          {participantsLoading && (
+            <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
+              Loading participants...
+            </div>
+          )}
+          {participantsError && (
+            <div className="absolute top-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
+              {participantsError}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
