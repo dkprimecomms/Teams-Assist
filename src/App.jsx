@@ -17,6 +17,40 @@ function decodeJwtPayload(token) {
     return null;
   }
 }
+async function callBackendGraphMe(ssoToken) {
+  setError("");
+  setBackendResponse("");
+
+  if (!API_BASE_URL) {
+    setBackendStatus("❌ VITE_API_BASE_URL not set");
+    setBackendResponse("Add VITE_API_BASE_URL in your .env and redeploy/restart.");
+    return;
+  }
+
+  setBackendStatus("Calling backend /graph/me …");
+
+  try {
+    const base = (API_BASE_URL || "").replace(/\/+$/, "");
+    const res = await fetch(`${base}/graph/me`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: ssoToken }),
+    });
+
+    const text = await res.text();
+    setBackendStatus(`Backend HTTP ${res.status}`);
+
+    try {
+      const json = JSON.parse(text);
+      setBackendResponse(JSON.stringify(json, null, 2));
+    } catch {
+      setBackendResponse(text);
+    }
+  } catch (e) {
+    setBackendStatus("❌ Backend call failed (likely CORS or network)");
+    setError(String(e?.message || e));
+  }
+}
 
 async function getTeamsSsoToken() {
   await microsoftTeams.app.initialize();
@@ -184,6 +218,13 @@ const res = await fetch(`${base}/whoami`, {
           >
             Refresh token + call backend
           </button>
+          <button
+  onClick={() => token && callBackendGraphMe(token)}
+  disabled={!token}
+  style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
+>
+  Test Graph (/graph/me)
+</button>
         </div>
 
         <div style={{ fontWeight: 600 }}>{backendStatus || "Waiting…"}</div>
