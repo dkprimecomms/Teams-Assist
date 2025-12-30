@@ -74,7 +74,7 @@ export default function App() {
     setBackendStatus("Calling backend /whoami …");
 
     try {
-      const base = (API_BASE_URL || "").replace(/\/+$/, ""); // trim trailing slashes
+      const base = (API_BASE_URL || "").replace(/\/+$/, "");
 const res = await fetch(`${base}/whoami`, {
   method: "GET",
   headers: { Authorization: `Bearer ${ssoToken}` },
