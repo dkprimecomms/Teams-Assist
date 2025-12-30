@@ -11,6 +11,23 @@ function classify(ev) {
   if (!isNaN(start) && start > now) return "upcoming";
   return "upcoming";
 }
+function formatLocalRange12h(startUTC, endUTC) {
+  if (!startUTC || !endUTC) return "";
+  const start = new Date(startUTC);
+  const end = new Date(endUTC);
+
+  const fmt = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  });
+
+  return `${fmt.format(start)} → ${fmt.format(end)}`;
+}
 
 function formatWhen(ev) {
   const s = ev?.start?.dateTime || "";

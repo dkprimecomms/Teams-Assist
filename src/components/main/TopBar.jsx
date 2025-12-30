@@ -16,6 +16,19 @@ export default function TopBar({ selected }) {
             "Select a meeting from the left."
           )}
         </p>
+
+        {selected?.status && (
+          <div className="mt-1 text-xs text-slate-500">
+            Status: <span className="font-medium text-slate-700">{selected.status}</span>
+            {selected.onlineProvider ? (
+              <>
+                {" "}
+                <span className="text-slate-400">•</span> Provider:{" "}
+                <span className="font-medium text-slate-700">{selected.onlineProvider}</span>
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <a

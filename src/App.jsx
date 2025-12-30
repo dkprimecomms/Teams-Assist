@@ -32,13 +32,13 @@ export default function App() {
       try {
         const items = await fetchMeetingsByStatus(statusTab);
 
-        // Normalize: keep placeholders for now; transcript loaded separately
+        // Keep placeholders; transcript loaded separately
         const normalized = (items || []).map((m) => ({
           ...m,
           participants: m.participants || [],
           transcript: m.transcript || "",
           summary: m.summary || "",
-          joinWebUrl: m.joinWebUrl || "", // ✅ required for transcript
+          joinWebUrl: m.joinWebUrl || "",
         }));
 
         if (!cancelled) {
@@ -62,7 +62,7 @@ export default function App() {
     };
   }, [statusTab]);
 
-  // Keep selection valid when list changes / tab changes
+  // Keep selection valid when list or tab changes
   useEffect(() => {
     const stillValid = meetings.find((m) => m.id === selectedMeetingId && m.status === statusTab);
     if (stillValid) return;
@@ -71,7 +71,7 @@ export default function App() {
     setSelectedMeetingId(first ? first.id : "");
   }, [statusTab, meetings, selectedMeetingId]);
 
-  // Load invitees for the selected meeting (we return [] for now in participantsApi)
+  // Load invitees for selected meeting (returns [] until backend is implemented)
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -105,12 +105,15 @@ export default function App() {
     if (!selectedMeetingId) return;
 
     const m = meetings.find((x) => x.id === selectedMeetingId);
+
+    // Not completed -> clear transcript
     if (!m || m.status !== "completed") {
       setTranscriptText("");
       setTranscriptLoading(false);
       return;
     }
 
+    // Completed but missing join link
     if (!m.joinWebUrl) {
       setTranscriptText("No join link found for this meeting (cannot fetch transcript).");
       setTranscriptLoading(false);
@@ -124,7 +127,7 @@ export default function App() {
       setTranscriptText("");
 
       try {
-        // ✅ IMPORTANT: transcript is fetched using joinWebUrl (not meeting id)
+        // Transcript API expects joinWebUrl
         const vtt = await fetchTranscript(m.joinWebUrl);
         if (!cancelled) setTranscriptText(vtt || "");
       } catch (e) {
@@ -171,7 +174,7 @@ export default function App() {
             setSelectedMeetingId={setSelectedMeetingId}
           />
 
-          {/* Loading + error overlay (small, non-blocking) */}
+          {/* Meetings loading/error overlay */}
           {loadingMeetings && (
             <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
               Loading meetings...
@@ -189,7 +192,7 @@ export default function App() {
         <div className="relative">
           <MainLayout selected={selected} />
 
-          {/* Optional participants loading/errors as small non-blocking overlays */}
+          {/* Participants loading/error overlay */}
           {participantsLoading && (
             <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
               Loading participants...
