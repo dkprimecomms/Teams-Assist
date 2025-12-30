@@ -74,12 +74,11 @@ export default function App() {
     setBackendStatus("Calling backend /whoami …");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/whoami`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${ssoToken}`,
-        },
-      });
+      const base = (API_BASE_URL || "").replace(/\/+$/, ""); // trim trailing slashes
+const res = await fetch(`${base}/whoami`, {
+  method: "GET",
+  headers: { Authorization: `Bearer ${ssoToken}` },
+});
 
       const text = await res.text();
       setBackendStatus(`Backend HTTP ${res.status}`);
