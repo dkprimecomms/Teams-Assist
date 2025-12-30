@@ -30,10 +30,9 @@ async function getTeamsSsoToken() {
 }
 
 function classifyMeeting(event) {
-  // Basic classification (we’ll refine later with attendee responses if needed)
   const isCancelled = !!event.isCancelled;
 
-  // Graph may return dateTime without timezone; treat it as ISO-ish
+  // Graph may return dateTime without timezone; still parseable
   const start = new Date(event?.start?.dateTime);
   const end = new Date(event?.end?.dateTime);
   const now = new Date();
@@ -56,6 +55,10 @@ export default function App() {
   const [error, setError] = useState("");
 
   const [meetings, setMeetings] = useState([]);
+
+  // Transcript UI
+  const [transcriptStatus, setTranscriptStatus] = useState("");
+  const [transcriptText, setTranscriptText] = useState("");
 
   const tokenSummary = useMemo(() => {
     if (!token) return "";
@@ -172,10 +175,45 @@ export default function App() {
     }
   }
 
+  async function loadTranscriptForMeeting(meeting) {
+    setError("");
+    setTranscriptStatus("Loading transcript…");
+    setTranscriptText("");
+
+    const joinWebUrl = meeting?.onlineMeeting?.joinUrl;
+    if (!joinWebUrl) {
+      setTranscriptStatus("❌ This meeting has no onlineMeeting.joinUrl (cannot fetch transcript).");
+      return;
+    }
+
+    try {
+      const { res, data } = await postJson("/graph/transcript", {
+        token,
+        joinWebUrl,
+      });
+
+      if (!res) return;
+
+      if (!res.ok || !data.ok) {
+        setTranscriptStatus(`Transcript HTTP ${res.status}`);
+        setTranscriptText(JSON.stringify(data, null, 2));
+        return;
+      }
+
+      setTranscriptStatus("✅ Transcript loaded (VTT)");
+      setTranscriptText(data.vtt || "");
+    } catch (e) {
+      setTranscriptStatus("❌ Transcript fetch failed");
+      setError(String(e?.message || e));
+    }
+  }
+
   async function refreshToken() {
     setError("");
     setBackendResponse("");
     setBackendStatus("");
+    setTranscriptStatus("");
+    setTranscriptText("");
 
     try {
       setStatus("Initializing Teams SDK…");
@@ -241,8 +279,7 @@ export default function App() {
         <h3 style={{ marginTop: 0 }}>Backend (Lambda Function URL)</h3>
 
         <div style={{ marginBottom: 8 }}>
-          API Base:{" "}
-          <code>{API_BASE_URL ? API_BASE_URL : "Set VITE_API_BASE_URL in .env"}</code>
+          API Base: <code>{API_BASE_URL ? API_BASE_URL : "Set VITE_API_BASE_URL in .env"}</code>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -288,6 +325,8 @@ export default function App() {
             <div style={{ display: "grid", gap: 8 }}>
               {meetings.map((m) => {
                 const label = classifyMeeting(m);
+                const joinUrl = m?.onlineMeeting?.joinUrl;
+
                 return (
                   <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
@@ -308,10 +347,31 @@ export default function App() {
                         Online: {m.onlineMeetingProvider}
                       </div>
                     )}
+
+                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
+                      Join URL: {joinUrl ? "✅ Present" : "❌ Missing"}
+                    </div>
+
+                    <button
+                      onClick={() => loadTranscriptForMeeting(m)}
+                      style={{ padding: "6px 10px", cursor: "pointer", marginTop: 8 }}
+                    >
+                      View Transcript
+                    </button>
                   </div>
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {transcriptStatus && (
+          <div style={{ marginTop: 12 }}>
+            <h4 style={{ margin: "12px 0 8px" }}>Transcript</h4>
+            <div style={{ fontWeight: 600 }}>{transcriptStatus}</div>
+            <pre style={{ whiteSpace: "pre-wrap", background: "#fafafa", padding: 10, borderRadius: 8, marginTop: 8 }}>
+              {transcriptText || "(no transcript yet)"}
+            </pre>
           </div>
         )}
       </div>
