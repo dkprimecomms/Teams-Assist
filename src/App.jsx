@@ -18,7 +18,6 @@ function decodeJwtPayload(token) {
   }
 }
 
-
 async function getTeamsSsoToken() {
   await microsoftTeams.app.initialize();
 
@@ -28,6 +27,21 @@ async function getTeamsSsoToken() {
       failureCallback: (err) => reject(err),
     });
   });
+}
+
+function classifyMeeting(event) {
+  // Basic classification (we’ll refine later with attendee responses if needed)
+  const isCancelled = !!event.isCancelled;
+
+  // Graph may return dateTime without timezone; treat it as ISO-ish
+  const start = new Date(event?.start?.dateTime);
+  const end = new Date(event?.end?.dateTime);
+  const now = new Date();
+
+  if (isCancelled) return "Skipped";
+  if (!isNaN(end) && end < now) return "Completed";
+  if (!isNaN(start) && start > now) return "Scheduled";
+  return "Scheduled";
 }
 
 export default function App() {
@@ -41,6 +55,8 @@ export default function App() {
   const [backendResponse, setBackendResponse] = useState("");
   const [error, setError] = useState("");
 
+  const [meetings, setMeetings] = useState([]);
+
   const tokenSummary = useMemo(() => {
     if (!token) return "";
     return `Token length: ${token.length}\nAud: ${claims?.aud || ""}\nUPN: ${claims?.preferred_username || ""}`;
@@ -48,7 +64,6 @@ export default function App() {
 
   const claimsPretty = useMemo(() => {
     if (!claims) return "";
-    // show only useful claims
     const subset = {
       aud: claims.aud,
       iss: claims.iss,
@@ -63,90 +78,116 @@ export default function App() {
     return JSON.stringify(subset, null, 2);
   }, [claims]);
 
-  async function callBackendWhoAmI(ssoToken) {
-    setError("");
-    setBackendResponse("");
+  async function postJson(path, bodyObj) {
     if (!API_BASE_URL) {
       setBackendStatus("❌ VITE_API_BASE_URL not set");
       setBackendResponse("Add VITE_API_BASE_URL in your .env and redeploy/restart.");
-      return;
+      return { ok: false };
     }
 
-    setBackendStatus("Calling backend /whoami …");
-
-    try {
-     const base = (API_BASE_URL || "").replace(/\/+$/, "");
-const res = await fetch(`${base}/whoami`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ token: ssoToken }),
-});
-
-        const text = await res.text();
-        setBackendStatus(`Backend HTTP ${res.status}`);
-
-        // Pretty-print JSON if possible
-        try {
-          const json = JSON.parse(text);
-          setBackendResponse(JSON.stringify(json, null, 2));
-        } catch {
-          setBackendResponse(text);
-        }
-      } catch (e) {
-        setBackendStatus("❌ Backend call failed (likely CORS or network)");
-        setError(String(e?.message || e));
-      }
-    }
-    async function callBackendGraphMe(ssoToken) {
-  setError("");
-  setBackendResponse("");
-
-  if (!API_BASE_URL) {
-    setBackendStatus("❌ VITE_API_BASE_URL not set");
-    setBackendResponse("Add VITE_API_BASE_URL in your .env and redeploy/restart.");
-    return;
-  }
-
-  setBackendStatus("Calling backend /graph/me …");
-
-  try {
     const base = (API_BASE_URL || "").replace(/\/+$/, "");
-    const res = await fetch(`${base}/graph/me`, {
+    const res = await fetch(`${base}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: ssoToken }),
+      body: JSON.stringify(bodyObj),
     });
 
     const text = await res.text();
-    setBackendStatus(`Backend HTTP ${res.status}`);
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
+    return { res, data };
+  }
+
+  async function callBackendWhoAmI(ssoToken) {
+    setError("");
+    setBackendResponse("");
+    setBackendStatus("Calling backend /whoami …");
 
     try {
-      const json = JSON.parse(text);
-      setBackendResponse(JSON.stringify(json, null, 2));
-    } catch {
-      setBackendResponse(text);
-    }
-  } catch (e) {
-    setBackendStatus("❌ Backend call failed (likely CORS or network)");
-    setError(String(e?.message || e));
-  }
-}
+      const { res, data } = await postJson("/whoami", { token: ssoToken });
+      if (!res) return;
 
-  async function refreshTokenAndCallBackend() {
+      setBackendStatus(`Backend HTTP ${res.status}`);
+      setBackendResponse(JSON.stringify(data, null, 2));
+    } catch (e) {
+      setBackendStatus("❌ Backend call failed");
+      setError(String(e?.message || e));
+    }
+  }
+
+  async function callBackendGraphMe(ssoToken) {
+    setError("");
+    setBackendResponse("");
+    setBackendStatus("Calling backend /graph/me …");
+
+    try {
+      const { res, data } = await postJson("/graph/me", { token: ssoToken });
+      if (!res) return;
+
+      setBackendStatus(`Backend HTTP ${res.status}`);
+      setBackendResponse(JSON.stringify(data, null, 2));
+    } catch (e) {
+      setBackendStatus("❌ Backend call failed");
+      setError(String(e?.message || e));
+    }
+  }
+
+  async function loadMeetings(ssoToken) {
+    setError("");
+    setBackendResponse("");
+    setBackendStatus("Loading meetings (/graph/events) …");
+
+    // Example range: last 14 days to next 14 days
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() - 14);
+    const end = new Date(now);
+    end.setDate(now.getDate() + 14);
+
+    try {
+      const { res, data } = await postJson("/graph/events", {
+        token: ssoToken,
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+      });
+      if (!res) return;
+
+      setBackendStatus(`Meetings HTTP ${res.status}`);
+
+      if (!res.ok || !data.ok) {
+        setBackendResponse(JSON.stringify(data, null, 2));
+        return;
+      }
+
+      const list = data.value || [];
+      setMeetings(list);
+      setBackendResponse(`Loaded ${list.length} events`);
+    } catch (e) {
+      setBackendStatus("❌ Meetings load failed");
+      setError(String(e?.message || e));
+    }
+  }
+
+  async function refreshToken() {
     setError("");
     setBackendResponse("");
     setBackendStatus("");
+
     try {
       setStatus("Initializing Teams SDK…");
       const tok = await getTeamsSsoToken();
-
       setToken(tok);
+
       const decoded = decodeJwtPayload(tok);
       setClaims(decoded);
 
       setStatus("✅ SSO OK (token received)");
+
+      // Default: verify backend token route once
       await callBackendWhoAmI(tok);
     } catch (e) {
       setStatus("❌ SSO FAILED");
@@ -155,7 +196,7 @@ const res = await fetch(`${base}/whoami`, {
   }
 
   useEffect(() => {
-    refreshTokenAndCallBackend();
+    refreshToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -200,8 +241,8 @@ const res = await fetch(`${base}/whoami`, {
         <h3 style={{ marginTop: 0 }}>Backend (Lambda Function URL)</h3>
 
         <div style={{ marginBottom: 8 }}>
-          Endpoint:{" "}
-          <code>{API_BASE_URL ? `${API_BASE_URL}/whoami` : "Set VITE_API_BASE_URL in .env"}</code>
+          API Base:{" "}
+          <code>{API_BASE_URL ? API_BASE_URL : "Set VITE_API_BASE_URL in .env"}</code>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -210,22 +251,28 @@ const res = await fetch(`${base}/whoami`, {
             disabled={!token}
             style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
           >
-            Retry backend (/whoami)
+            Verify Token (/whoami)
           </button>
 
           <button
-            onClick={refreshTokenAndCallBackend}
-            style={{ padding: "8px 12px", cursor: "pointer" }}
+            onClick={() => token && callBackendGraphMe(token)}
+            disabled={!token}
+            style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
           >
-            Refresh token + call backend
+            Test Graph (/graph/me)
           </button>
+
           <button
-  onClick={() => token && callBackendGraphMe(token)}
-  disabled={!token}
-  style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
->
-  Test Graph (/graph/me)
-</button>
+            onClick={() => token && loadMeetings(token)}
+            disabled={!token}
+            style={{ padding: "8px 12px", cursor: token ? "pointer" : "not-allowed" }}
+          >
+            Load Meetings
+          </button>
+
+          <button onClick={refreshToken} style={{ padding: "8px 12px", cursor: "pointer" }}>
+            Refresh Token
+          </button>
         </div>
 
         <div style={{ fontWeight: 600 }}>{backendStatus || "Waiting…"}</div>
@@ -233,6 +280,40 @@ const res = await fetch(`${base}/whoami`, {
         <pre style={{ whiteSpace: "pre-wrap", background: "#fafafa", padding: 10, borderRadius: 8, marginTop: 8 }}>
           {backendResponse || "(no response yet)"}
         </pre>
+
+        {meetings.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <h4 style={{ margin: "12px 0 8px" }}>Meetings ({meetings.length})</h4>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              {meetings.map((m) => {
+                const label = classifyMeeting(m);
+                return (
+                  <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                      <div style={{ fontWeight: 600 }}>{m.subject || "(no subject)"}</div>
+                      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
+                    </div>
+
+                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>
+                      {m.start?.dateTime} → {m.end?.dateTime}
+                    </div>
+
+                    <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
+                      Cancelled: {String(!!m.isCancelled)}
+                    </div>
+
+                    {m.onlineMeetingProvider && (
+                      <div style={{ opacity: 0.8, fontSize: 13, marginTop: 2 }}>
+                        Online: {m.onlineMeetingProvider}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
