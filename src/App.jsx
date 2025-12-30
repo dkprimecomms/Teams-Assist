@@ -162,7 +162,7 @@ export default function App() {
   }, [selectedRaw, participants, transcriptText, transcriptLoading]);
 
   return (
-    <div className="h-screen w-full bg-slate-50">
+<div className="h-screen w-full bg-slate-50 overflow-hidden">
       <div className="h-full grid grid-cols-[320px_1fr]">
         {/* Sidebar */}
         <div className="relative">
@@ -208,4 +208,3 @@ export default function App() {
     </div>
   );
 }
-  
