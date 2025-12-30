@@ -163,7 +163,7 @@ export default function App() {
 
   return (
 <div className="h-screen w-full bg-slate-50 overflow-hidden">
-      <div className="h-full grid grid-cols-[320px_1fr]">
++ <div className="h-full grid grid-cols-[320px_1fr] min-h-0">
         {/* Sidebar */}
         <div className="relative">
           <MeetingsSidebar

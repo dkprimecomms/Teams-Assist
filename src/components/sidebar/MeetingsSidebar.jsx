@@ -16,7 +16,7 @@ export default function MeetingsSidebar({
   );
 
   return (
-    <aside className="border-r border-slate-200 bg-white p-4 flex flex-col gap-4">
+  <aside className="h-full min-h-0 border-r border-slate-200 bg-white p-4 flex flex-col gap-4">
       <div>
         <h1 className="text-lg font-semibold text-slate-900">Meetings</h1>
         <p className="text-xs text-slate-500">Filter and select a meeting</p>
