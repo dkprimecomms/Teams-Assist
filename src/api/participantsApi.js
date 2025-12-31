@@ -2,7 +2,6 @@
 import { getTeamsToken } from "./authApi";
 import { postJson } from "./http";
 
-// Returns: [{ name, email, role, response }]
 export async function fetchInvitees(eventId) {
   const token = await getTeamsToken();
 
@@ -12,7 +11,7 @@ export async function fetchInvitees(eventId) {
   });
 
   if (!res.ok || !data.ok) {
-    throw new Error(data?.error || data?.detail || `Invitees fetch failed (${res.status})`);
+    throw new Error(data?.error || `Invitees fetch failed (${res.status})`);
   }
 
   return data.invitees || [];
