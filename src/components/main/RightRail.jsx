@@ -1,3 +1,4 @@
+// src/components/main/RightRail.jsx
 import React from "react";
 import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
@@ -20,9 +21,7 @@ export default function RightRail({ selected }) {
         {!selected ? (
           <div className="text-sm text-slate-500">Select a meeting to see participants.</div>
         ) : participants.length === 0 ? (
-          <div className="text-sm text-slate-500">
-            No participants loaded yet. (Next: wire invitees from backend.)
-          </div>
+          <div className="text-sm text-slate-500">No participants found for this meeting.</div>
         ) : (
           <ul className="space-y-2">
             {participants.map((p, idx) => (
@@ -31,7 +30,6 @@ export default function RightRail({ selected }) {
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
               >
                 <div className="flex items-start gap-2">
-                  {/* Small icon per participant */}
                   <ParticipantsIcon className="h-4 w-4 text-slate-500 mt-0.5" />
 
                   <div className="min-w-0">
