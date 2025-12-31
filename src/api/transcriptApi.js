@@ -10,9 +10,8 @@ export async function fetchTranscript(joinWebUrl) {
   });
 
   if (!res.ok || !data.ok) {
-    throw new Error(data?.error || `Transcript fetch failed (${res.status})`);
+    throw new Error(data?.error || data?.detail || `Transcript fetch failed (${res.status})`);
   }
 
-  // returns VTT
   return data.vtt || "";
 }
