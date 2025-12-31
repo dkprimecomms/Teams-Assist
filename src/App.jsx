@@ -21,8 +21,9 @@ export default function App() {
 
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [transcriptError, setTranscriptError] = useState("");
 
-  // Load meetings for the selected status tab
+  // 1) Load meetings for the selected tab (backend already filters by status)
   useEffect(() => {
     let cancelled = false;
 
@@ -32,13 +33,14 @@ export default function App() {
       try {
         const items = await fetchMeetingsByStatus(statusTab);
 
-        // Keep placeholders; transcript loaded separately
         const normalized = (items || []).map((m) => ({
           ...m,
-          participants: m.participants || [],
-          transcript: m.transcript || "",
+          participants: [],
+          transcript: "",
           summary: m.summary || "",
           joinWebUrl: m.joinWebUrl || "",
+          startUTC: m.startUTC || null,
+          endUTC: m.endUTC || null,
         }));
 
         if (!cancelled) {
@@ -62,16 +64,15 @@ export default function App() {
     };
   }, [statusTab]);
 
-  // Keep selection valid when list or tab changes
+  // 2) Keep selection valid when list/tab changes
   useEffect(() => {
-    const stillValid = meetings.find((m) => m.id === selectedMeetingId && m.status === statusTab);
+    const stillValid = meetings.find((m) => m.id === selectedMeetingId);
     if (stillValid) return;
 
-    const first = meetings.find((m) => m.status === statusTab);
-    setSelectedMeetingId(first ? first.id : "");
-  }, [statusTab, meetings, selectedMeetingId]);
+    setSelectedMeetingId(meetings?.[0]?.id || "");
+  }, [meetings, selectedMeetingId]);
 
-  // Load invitees for selected meeting (returns [] until backend is implemented)
+  // 3) Load participants for selected meeting via POST /graph/invitees
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -94,26 +95,30 @@ export default function App() {
     }
 
     loadInvitees();
-
     return () => {
       cancelled = true;
     };
   }, [selectedMeetingId]);
 
-  // Load transcript only for completed meetings
+  // 4) Load transcript ONLY for completed meetings with joinWebUrl
   useEffect(() => {
     if (!selectedMeetingId) return;
 
     const m = meetings.find((x) => x.id === selectedMeetingId);
+    setTranscriptError("");
 
-    // Not completed -> clear transcript
-    if (!m || m.status !== "completed") {
+    if (!m) {
       setTranscriptText("");
       setTranscriptLoading(false);
       return;
     }
 
-    // Completed but missing join link
+    if (m.status !== "completed") {
+      setTranscriptText("");
+      setTranscriptLoading(false);
+      return;
+    }
+
     if (!m.joinWebUrl) {
       setTranscriptText("No join link found for this meeting (cannot fetch transcript).");
       setTranscriptLoading(false);
@@ -125,13 +130,15 @@ export default function App() {
     (async () => {
       setTranscriptLoading(true);
       setTranscriptText("");
-
       try {
-        // Transcript API expects joinWebUrl
+        // IMPORTANT: transcript API expects joinWebUrl, not eventId
         const vtt = await fetchTranscript(m.joinWebUrl);
         if (!cancelled) setTranscriptText(vtt || "");
       } catch (e) {
-        if (!cancelled) setTranscriptText(`Transcript load failed: ${String(e?.message || e)}`);
+        if (!cancelled) {
+          setTranscriptText("");
+          setTranscriptError(String(e?.message || e));
+        }
       } finally {
         if (!cancelled) setTranscriptLoading(false);
       }
@@ -142,13 +149,13 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // Selected meeting object from list
+  // 5) Selected meeting object from list
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // Merge transcript + participants into selected
+  // 6) Merge participants + transcript into selected
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
@@ -157,15 +164,17 @@ export default function App() {
       participants: participants || [],
       transcript: transcriptLoading
         ? "Loading transcript…"
-        : transcriptText || selectedRaw.transcript || "",
+        : transcriptError
+        ? `Transcript load failed: ${transcriptError}`
+        : transcriptText || "",
     };
-  }, [selectedRaw, participants, transcriptText, transcriptLoading]);
+  }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-<div className="h-screen w-full bg-slate-50 overflow-hidden">
- <div className="h-full grid grid-cols-[320px_1fr] min-h-0">
+    <div className="h-screen w-full bg-slate-50 overflow-hidden">
+      <div className="h-full grid grid-cols-[320px_1fr] min-h-0">
         {/* Sidebar */}
-        <div className="relative">
+        <div className="relative h-full min-h-0">
           <MeetingsSidebar
             statusTab={statusTab}
             setStatusTab={setStatusTab}
@@ -174,7 +183,6 @@ export default function App() {
             setSelectedMeetingId={setSelectedMeetingId}
           />
 
-          {/* Meetings loading/error overlay */}
           {loadingMeetings && (
             <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
               Loading meetings...
@@ -189,10 +197,10 @@ export default function App() {
         </div>
 
         {/* Main */}
-        <div className="relative">
+        <div className="relative h-full min-h-0 overflow-hidden">
           <MainLayout selected={selected} />
 
-          {/* Participants loading/error overlay */}
+          {/* Optional participants loading/errors */}
           {participantsLoading && (
             <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
               Loading participants...

@@ -1,21 +1,17 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export async function postJson(path, body) {
-  if (!BASE) throw new Error("Missing VITE_API_BASE_URL");
-
-  const res = await fetch(`${BASE}${path}`, {
+  const base = (API_BASE || "").replace(/\/+$/, "");
+  const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  const text = await res.text();
-  let data;
+  let data = {};
   try {
-    data = JSON.parse(text);
-  } catch {
-    data = { raw: text };
-  }
+    data = await res.json();
+  } catch {}
 
   return { res, data };
 }

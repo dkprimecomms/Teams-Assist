@@ -10,8 +10,8 @@ export async function fetchInvitees(eventId) {
     eventId,
   });
 
-  if (!res.ok || !data.ok) {
-    throw new Error(data?.error || `Invitees fetch failed (${res.status})`);
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || data?.detail || `Invitees fetch failed (${res.status})`);
   }
 
   return data.invitees || [];
