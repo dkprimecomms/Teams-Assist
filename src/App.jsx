@@ -23,7 +23,11 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  // 1) Load meetings for the selected tab (backend already filters by status)
+  // ✅ responsive UI toggles (mobile)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+
+  // 1) Load meetings for the selected tab
   useEffect(() => {
     let cancelled = false;
 
@@ -68,11 +72,10 @@ export default function App() {
   useEffect(() => {
     const stillValid = meetings.find((m) => m.id === selectedMeetingId);
     if (stillValid) return;
-
     setSelectedMeetingId(meetings?.[0]?.id || "");
   }, [meetings, selectedMeetingId]);
 
-  // 3) Load participants for selected meeting via POST /graph/invitees
+  // 3) Load participants for selected meeting
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -100,7 +103,7 @@ export default function App() {
     };
   }, [selectedMeetingId]);
 
-  // 4) Load transcript ONLY for completed meetings with joinWebUrl
+  // 4) Load transcript only for completed meetings with joinWebUrl
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -131,7 +134,6 @@ export default function App() {
       setTranscriptLoading(true);
       setTranscriptText("");
       try {
-        // IMPORTANT: transcript API expects joinWebUrl, not eventId
         const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
         const vtt = await fetchTranscript(USE_MOCKS ? m.id : m.joinWebUrl);
         if (!cancelled) setTranscriptText(vtt || "");
@@ -150,7 +152,7 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 5) Selected meeting object from list
+  // 5) Selected meeting from list
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
@@ -173,9 +175,38 @@ export default function App() {
 
   return (
     <div className="h-screen w-full bg-slate-50 overflow-hidden">
-      <div className="h-full grid grid-cols-[320px_1fr] min-h-0">
-        {/* Sidebar */}
-        <div className="relative h-full min-h-0">
+      {/* Mobile overlay for sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile sidebar drawer */}
+      <div
+        className={[
+          "fixed z-50 inset-y-0 left-0 w-[320px] bg-white md:hidden",
+          "transform transition-transform duration-200 ease-out",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
+        <MeetingsSidebar
+          statusTab={statusTab}
+          setStatusTab={setStatusTab}
+          meetings={meetings}
+          selectedMeetingId={selectedMeetingId}
+          setSelectedMeetingId={(id) => {
+            setSelectedMeetingId(id);
+            setSidebarOpen(false); // close drawer after selection
+          }}
+        />
+      </div>
+
+      {/* Desktop layout grid */}
+      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[320px_1fr]">
+        {/* Sidebar (desktop only) */}
+        <div className="hidden md:block relative h-full min-h-0 border-r border-slate-200 bg-white">
           <MeetingsSidebar
             statusTab={statusTab}
             setStatusTab={setStatusTab}
@@ -199,9 +230,14 @@ export default function App() {
 
         {/* Main */}
         <div className="relative h-full min-h-0 overflow-hidden">
-          <MainLayout selected={selected} />
+          <MainLayout
+            selected={selected}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            participantsOpen={participantsOpen}
+            setParticipantsOpen={setParticipantsOpen}
+          />
 
-          {/* Optional participants loading/errors */}
           {participantsLoading && (
             <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
               Loading participants...
