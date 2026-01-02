@@ -96,12 +96,6 @@ export default function RightRail({ selected }) {
           <div className="text-sm text-slate-500">Select a meeting to see participants.</div>
         )}
       </Card>
-
-      <Card title="Summary" subtitle="AI summary of the transcript.">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 leading-relaxed min-h-[220px]">
-          {selected ? selected.summary : "Select a meeting to view its summary."}
-        </div>
-      </Card>
     </div>
   );
 }
