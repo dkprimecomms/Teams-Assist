@@ -80,16 +80,6 @@ export default function TopBar({ selected, onOpenSidebar }) {
           </div>
         )}
       </div>
-
-      {/* Desktop help link */}
-      <a
-        className="hidden md:inline text-sm font-medium text-slate-700 hover:text-slate-900 underline underline-offset-4"
-        href="https://learn.microsoft.com/microsoftteams/platform/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Teams platform docs
-      </a>
     </header>
   );
 }

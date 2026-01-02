@@ -1,4 +1,3 @@
-// src/components/sidebar/TabButton.jsx
 import React from "react";
 
 export default function TabButton({ active, children, onClick }) {
@@ -6,10 +5,10 @@ export default function TabButton({ active, children, onClick }) {
     <button
       onClick={onClick}
       className={[
-        "rounded-md border border-black px-3 py-1 text-sm",
-        "shadow-[0_0_0_0_black] hover:shadow-[2px_2px_0_0_black] active:translate-x-[1px] active:translate-y-[1px]",
-        active ? "bg-white font-semibold" : "bg-white/70",
+        "flex-1 text-center py-2 text-[13.5px] whitespace-nowrap transition-colors duration-200",
+        active ? "text-slate-900 font-semibold" : "text-slate-500 hover:text-slate-900",
       ].join(" ")}
+      type="button"
     >
       {children}
     </button>

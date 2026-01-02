@@ -62,34 +62,25 @@ function stripHtml(s) {
 function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
 
-  const organizerName =
-    raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
-  const organizerEmail =
-    raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
+  const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
+  const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
 
   const joinUrl = selected?.joinWebUrl || raw?.onlineMeeting?.joinUrl || "";
   const location =
-    selected?.location ||
-    raw?.location?.displayName ||
-    raw?.locations?.[0]?.displayName ||
-    "";
+    selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
 
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      {/* Header row INSIDE the meeting details box */}
       <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-base font-semibold text-slate-900 truncate">
             {selected?.title || raw?.subject || "(no subject)"}
           </div>
-          <div className="text-xs text-slate-500 mt-0.5 truncate">
-            {selected?.when || ""}
-          </div>
+          <div className="text-xs text-slate-500 mt-0.5 truncate">{selected?.when || ""}</div>
         </div>
 
-        {/* ✅ Teams purple join button (replaces join link row) */}
         {joinUrl ? (
           <a
             href={joinUrl}
@@ -117,7 +108,6 @@ function MeetingDetails({ selected }) {
         )}
       </div>
 
-      {/* Body rows */}
       <div className="p-4">
         <Row label="Organizer">
           <div className="break-words">
@@ -142,8 +132,6 @@ function MeetingDetails({ selected }) {
           <div className="break-words">{location || "(none)"}</div>
         </Row>
 
-        {/* ✅ Join link row removed */}
-
         <Row label="Description">
           {description ? (
             <div className="text-sm text-slate-700 whitespace-pre-wrap break-words">
@@ -158,13 +146,55 @@ function MeetingDetails({ selected }) {
   );
 }
 
+// ✅ Segmented toggle UI
+function SegmentedToggle({ value, onChange }) {
+  const isTranscript = value === "transcript";
+
+  return (
+    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+      {/* Sliding active pill */}
+      <span
+        className={[
+          "absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg",
+          "bg-[#00A4EF]",
+          "transition-transform duration-300 ease-out",
+        ].join(" ")}
+        style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange("transcript")}
+        className={[
+          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg",
+          "transition-colors duration-200",
+          isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
+        ].join(" ")}
+      >
+        Transcript
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onChange("summary")}
+        className={[
+          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg",
+          "transition-colors duration-200",
+          !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
+        ].join(" ")}
+      >
+        Summary
+      </button>
+    </div>
+  );
+}
+
+
 export default function TranscriptPanel({ selected, participants = [], onOpenParticipants }) {
   const [tab, setTab] = useState("transcript");
-  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     setTab("transcript");
-    setCollapsed(false);
   }, [selected?.id]);
 
   const isCompleted = selected?.status === "completed";
@@ -180,46 +210,17 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
 
   function onSummarizeClick() {
     if (!canSummarize) return;
-    setCollapsed(true);
-    window.setTimeout(() => {
-      setTab("summary");
-      setCollapsed(false);
-    }, 220);
+    // ✅ auto-toggle to summary
+    setTab("summary");
   }
 
   const headerTitle = (
     <div className="flex items-center justify-between gap-3 w-full">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {isCompleted ? (
-          <>
-            <button
-              onClick={() => setTab("transcript")}
-              className={[
-                "text-sm font-semibold px-3 py-1 rounded-lg border transition",
-                tab === "transcript"
-                  ? "bg-white border-slate-300 text-slate-900"
-                  : "bg-slate-50 border-transparent text-slate-600 hover:text-slate-900",
-              ].join(" ")}
-            >
-              Transcript
-            </button>
-
-            <button
-              onClick={() => setTab("summary")}
-              className={[
-                "text-sm font-semibold px-3 py-1 rounded-lg border transition",
-                tab === "summary"
-                  ? "bg-white border-slate-300 text-slate-900"
-                  : "bg-slate-50 border-transparent text-slate-600 hover:text-slate-900",
-              ].join(" ")}
-            >
-              Summary
-            </button>
-          </>
+          <SegmentedToggle value={tab} onChange={setTab} />
         ) : (
-          <div className="text-sm font-semibold text-slate-900">
-            {isUpcoming ? "Meeting Details" : "Details"}
-          </div>
+          <div className="text-sm font-semibold text-slate-900">{isUpcoming ? "Meeting Details" : "Details"}</div>
         )}
       </div>
 
@@ -230,6 +231,7 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
           onClick={onOpenParticipants}
           className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
           title="Participants"
+          type="button"
         >
           <ParticipantsIcon />
         </button>
@@ -258,30 +260,24 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
         </div>
       ) : (
         <div className="relative rounded-xl border border-slate-200 bg-slate-50 h-full min-h-0 overflow-hidden flex flex-col">
-          <div
-            className={[
-              "flex-1 min-h-0 transition-opacity duration-200 ease-in-out",
-              collapsed ? "opacity-0" : "opacity-100",
-            ].join(" ")}
-          >
-            <div className="h-full min-h-0 overflow-auto">
-              <pre className="whitespace-pre-wrap break-words text-sm text-slate-900 leading-relaxed p-3">
-                {!selected
-                  ? "Select a meeting."
-                  : isCompleted
-                  ? tab === "transcript"
-                    ? transcriptText || "No transcript loaded."
-                    : summaryText
-                  : "No transcript for this meeting status."}
-              </pre>
-            </div>
+          <div className="h-full min-h-0 overflow-auto">
+            <pre className="whitespace-pre-wrap break-words text-sm text-slate-900 leading-relaxed p-3">
+              {!selected
+                ? "Select a meeting."
+                : isCompleted
+                ? tab === "transcript"
+                  ? transcriptText || "No transcript loaded."
+                  : summaryText
+                : "No transcript for this meeting status."}
+            </pre>
           </div>
 
+          {/* Summarize floating button only on Transcript tab */}
           {isCompleted && tab === "transcript" && (
             <button
               onClick={onSummarizeClick}
               disabled={!canSummarize}
-              title={canSummarize ? "Summarize" : "Load a transcript first"}
+              title={canSummarize ? "Summarize (switch to Summary)" : "Load a transcript first"}
               className={[
                 "absolute bottom-3 right-3 rounded-full border shadow-sm",
                 "h-11 w-11 flex items-center justify-center",
@@ -290,6 +286,7 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
                   ? "bg-white border-slate-300 text-slate-900 hover:bg-slate-100"
                   : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
               ].join(" ")}
+              type="button"
             >
               <SummarizeIcon className="h-5 w-5" />
             </button>
