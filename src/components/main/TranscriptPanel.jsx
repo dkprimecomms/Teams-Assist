@@ -77,16 +77,48 @@ function MeetingDetails({ selected }) {
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white">
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      {/* Header row INSIDE the meeting details box */}
+      <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-base font-semibold text-slate-900 truncate">
+            {selected?.title || raw?.subject || "(no subject)"}
+          </div>
+          <div className="text-xs text-slate-500 mt-0.5 truncate">
+            {selected?.when || ""}
+          </div>
+        </div>
+
+        {/* ✅ Teams purple join button (replaces join link row) */}
+        {joinUrl ? (
+          <a
+            href={joinUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={[
+              "shrink-0 inline-flex items-center justify-center",
+              "h-9 px-4 rounded-xl text-sm font-semibold",
+              "text-white bg-[#6264A7] hover:bg-[#5557A0]",
+              "focus:outline-none focus:ring-2 focus:ring-[#6264A7]/40",
+              "active:translate-y-[1px]",
+            ].join(" ")}
+            title="Join in Teams"
+          >
+            Join in Teams
+          </a>
+        ) : (
+          <button
+            disabled
+            className="shrink-0 h-9 px-4 rounded-xl text-sm font-semibold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+            title="No join link available"
+          >
+            Join in Teams
+          </button>
+        )}
+      </div>
+
+      {/* Body rows */}
       <div className="p-4">
-        <Row label="Title">
-          <div className="font-semibold break-words">{selected?.title || raw?.subject || "(no subject)"}</div>
-        </Row>
-
-        <Row label="When">
-          <div className="break-words">{selected?.when || ""}</div>
-        </Row>
-
         <Row label="Organizer">
           <div className="break-words">
             {organizerName || "(unknown)"}{" "}
@@ -101,27 +133,16 @@ function MeetingDetails({ selected }) {
         </Row>
 
         <Row label="Provider">
-          <div className="break-words">{selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}</div>
+          <div className="break-words">
+            {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
+          </div>
         </Row>
 
         <Row label="Location">
           <div className="break-words">{location || "(none)"}</div>
         </Row>
 
-        <Row label="Join link">
-          {joinUrl ? (
-            <a
-              href={joinUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm font-medium text-slate-700 underline underline-offset-4 break-all"
-            >
-              Open meeting
-            </a>
-          ) : (
-            <span className="text-slate-500">(no join link)</span>
-          )}
-        </Row>
+        {/* ✅ Join link row removed */}
 
         <Row label="Description">
           {description ? (
@@ -152,7 +173,10 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
   const transcriptText = selected?.transcript || "";
   const summaryText = selected?.summary || "No summary yet.";
 
-  const canSummarize = useMemo(() => isCompleted && transcriptText.trim().length > 0, [isCompleted, transcriptText]);
+  const canSummarize = useMemo(
+    () => isCompleted && transcriptText.trim().length > 0,
+    [isCompleted, transcriptText]
+  );
 
   function onSummarizeClick() {
     if (!canSummarize) return;
@@ -193,11 +217,13 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
             </button>
           </>
         ) : (
-          <div className="text-sm font-semibold text-slate-900">{isUpcoming ? "Meeting Details" : "Details"}</div>
+          <div className="text-sm font-semibold text-slate-900">
+            {isUpcoming ? "Meeting Details" : "Details"}
+          </div>
         )}
       </div>
 
-      {/* ✅ only below lg (since RightRail exists on lg+) */}
+      {/* Only below lg (RightRail exists on lg+) */}
       <div className="flex items-center gap-2 lg:hidden">
         <ParticipantsGroup participants={participants} />
         <button
