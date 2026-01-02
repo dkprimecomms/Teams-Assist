@@ -132,7 +132,8 @@ export default function App() {
       setTranscriptText("");
       try {
         // IMPORTANT: transcript API expects joinWebUrl, not eventId
-        const vtt = await fetchTranscript(m.joinWebUrl);
+        const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
+        const vtt = await fetchTranscript(USE_MOCKS ? m.id : m.joinWebUrl);
         if (!cancelled) setTranscriptText(vtt || "");
       } catch (e) {
         if (!cancelled) {
