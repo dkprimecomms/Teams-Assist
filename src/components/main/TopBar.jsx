@@ -16,7 +16,6 @@ export default function TopBar({ selected, onOpenSidebar }) {
     <header className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          {/* Mobile: hamburger */}
           <button
             onClick={onOpenSidebar}
             className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
@@ -54,7 +53,6 @@ export default function TopBar({ selected, onOpenSidebar }) {
         )}
       </div>
 
-      {/* Desktop link */}
       <a
         className="hidden md:inline text-sm font-medium text-slate-700 hover:text-slate-900 underline underline-offset-4"
         href="https://learn.microsoft.com/microsoftteams/platform/"

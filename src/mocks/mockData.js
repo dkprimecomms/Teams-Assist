@@ -74,6 +74,18 @@ export const mockParticipantsByMeetingId = Object.fromEntries(
         role: "optional",
         response: "tentativelyAccepted",
       },
+      {
+        name: "Kanishk S R",
+        email: "kanishka@primecomms.com",
+        role: "optional",
+        response: "notResponded",
+      },
+      {
+        name: "Harismithra D",
+        email: "harismithra@primecomms.com",
+        role: "optional",
+        response: "tentativelyAccepted",
+      },
     ],
   ])
 );

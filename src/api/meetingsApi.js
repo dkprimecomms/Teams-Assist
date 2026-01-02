@@ -35,14 +35,18 @@ export async function fetchMeetingsByStatus(statusTab) {
       status: m.status,
       joinWebUrl: m.joinWebUrl || "",
       onlineProvider: m.onlineProvider || "",
+      organizer: m.organizer || null,
+      attendees: m.attendees || [],
+      location: m.location || "",
+      bodyPreview: m.bodyPreview || "",
       participants: [],
       transcript: "",
       summary: m.summary || "",
-      raw: m,
+      raw: m.raw || m,
     }));
   }
 
-  // ✅ REAL BACKEND MODE (your current code)
+  // ✅ REAL BACKEND MODE
   const token = await getTeamsToken();
 
   const now = new Date();
@@ -71,9 +75,13 @@ export async function fetchMeetingsByStatus(statusTab) {
     status: m.status,
     joinWebUrl: m.joinWebUrl || "",
     onlineProvider: m.onlineProvider || "",
+    organizer: m.organizer || null,
+    attendees: m.attendees || [],
+    location: m.location || "",
+    bodyPreview: m.bodyPreview || "",
     participants: [],
     transcript: "",
-    summary: "",
-    raw: m,
+    summary: m.summary || "",
+    raw: m.raw || m, // ✅ backend now returns raw
   }));
 }

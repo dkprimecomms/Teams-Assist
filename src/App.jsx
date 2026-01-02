@@ -23,11 +23,11 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  // ✅ responsive UI toggles (mobile)
+  // ✅ responsive toggles
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
 
-  // 1) Load meetings for the selected tab
+  // 1) Load meetings (backend filters by status)
   useEffect(() => {
     let cancelled = false;
 
@@ -68,16 +68,29 @@ export default function App() {
     };
   }, [statusTab]);
 
-  // 2) Keep selection valid when list/tab changes
+  // 2) Keep selection valid
   useEffect(() => {
     const stillValid = meetings.find((m) => m.id === selectedMeetingId);
     if (stillValid) return;
     setSelectedMeetingId(meetings?.[0]?.id || "");
   }, [meetings, selectedMeetingId]);
 
-  // 3) Load participants for selected meeting
+  // 3) Participants:
+  // ✅ Upcoming: use attendees from /graph/events (instant)
+  // ✅ Completed/Skipped: keep your invitees call (optional but fine)
   useEffect(() => {
     if (!selectedMeetingId) return;
+
+    const m = meetings.find((x) => x.id === selectedMeetingId);
+    if (!m) return;
+
+    // upcoming -> attendees already returned by backend
+    if (m.status === "upcoming") {
+      setParticipants(m.attendees || []);
+      setParticipantsLoading(false);
+      setParticipantsError("");
+      return;
+    }
 
     let cancelled = false;
 
@@ -101,9 +114,9 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMeetingId]);
+  }, [selectedMeetingId, meetings]);
 
-  // 4) Load transcript only for completed meetings with joinWebUrl
+  // 4) Transcript ONLY for completed
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -152,24 +165,26 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 5) Selected meeting from list
+  // 5) Selected meeting object
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // 6) Merge participants + transcript into selected
+  // 6) Merge details + participants + transcript into selected
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
     return {
       ...selectedRaw,
-      participants: participants || [],
-      transcript: transcriptLoading
-        ? "Loading transcript…"
-        : transcriptError
-        ? `Transcript load failed: ${transcriptError}`
-        : transcriptText || "",
+      // prefer fetched invitees (completed), fallback to attendees (upcoming)
+      participants: (participants && participants.length ? participants : selectedRaw.attendees) || [],
+      organizer: selectedRaw.organizer || null,
+      attendees: selectedRaw.attendees || [],
+      location: selectedRaw.location || "",
+      bodyPreview: selectedRaw.bodyPreview || "",
+      transcript:
+        transcriptLoading ? "Loading transcript…" : transcriptError ? `Transcript load failed: ${transcriptError}` : transcriptText || "",
     };
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
@@ -177,10 +192,7 @@ export default function App() {
     <div className="h-screen w-full bg-slate-50 overflow-hidden">
       {/* Mobile overlay for sidebar */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Mobile sidebar drawer */}
@@ -198,14 +210,13 @@ export default function App() {
           selectedMeetingId={selectedMeetingId}
           setSelectedMeetingId={(id) => {
             setSelectedMeetingId(id);
-            setSidebarOpen(false); // close drawer after selection
+            setSidebarOpen(false);
           }}
         />
       </div>
 
-      {/* Desktop layout grid */}
       <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[320px_1fr]">
-        {/* Sidebar (desktop only) */}
+        {/* Sidebar (desktop) */}
         <div className="hidden md:block relative h-full min-h-0 border-r border-slate-200 bg-white">
           <MeetingsSidebar
             statusTab={statusTab}
@@ -220,7 +231,6 @@ export default function App() {
               Loading meetings...
             </div>
           )}
-
           {meetingsError && (
             <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
               {meetingsError}

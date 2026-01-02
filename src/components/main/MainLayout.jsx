@@ -29,7 +29,6 @@ export default function MainLayout({
           items-stretch
         "
       >
-        {/* Transcript */}
         <div className="min-h-0 flex">
           <TranscriptPanel
             selected={selected}
@@ -38,13 +37,13 @@ export default function MainLayout({
           />
         </div>
 
-        {/* Right rail desktop only */}
+        {/* Right rail only on lg+ */}
         <div className="min-h-0 hidden lg:flex">
           <RightRail selected={selected} />
         </div>
       </div>
 
-      {/* Mobile participants bottom-sheet */}
+      {/* Participants bottom-sheet on <lg (mobile + tablet) */}
       {participantsOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setParticipantsOpen(false)} />
