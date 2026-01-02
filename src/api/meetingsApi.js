@@ -1,5 +1,9 @@
+// src/api/meetingsApi.js
 import { getTeamsToken } from "./authApi";
 import { postJson } from "./http";
+import { mockMeetings } from "../mocks/mockData";
+
+const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
 
 function formatLocalRange12h(startUTC, endUTC) {
   if (!startUTC || !endUTC) return "";
@@ -20,6 +24,25 @@ function formatLocalRange12h(startUTC, endUTC) {
 }
 
 export async function fetchMeetingsByStatus(statusTab) {
+  // ✅ MOCK MODE
+  if (USE_MOCKS) {
+    const items = (mockMeetings || []).filter((m) => m.status === statusTab);
+
+    return items.map((m) => ({
+      id: m.id,
+      title: m.title || "(no subject)",
+      when: formatLocalRange12h(m.startUTC, m.endUTC),
+      status: m.status,
+      joinWebUrl: m.joinWebUrl || "",
+      onlineProvider: m.onlineProvider || "",
+      participants: [],
+      transcript: "",
+      summary: m.summary || "",
+      raw: m,
+    }));
+  }
+
+  // ✅ REAL BACKEND MODE (your current code)
   const token = await getTeamsToken();
 
   const now = new Date();
@@ -32,7 +55,7 @@ export async function fetchMeetingsByStatus(statusTab) {
     token,
     startISO: start.toISOString(),
     endISO: end.toISOString(),
-    status: statusTab, // ✅ let backend filter + classify
+    status: statusTab,
   });
 
   if (!res.ok || !data.ok) {
@@ -41,12 +64,11 @@ export async function fetchMeetingsByStatus(statusTab) {
 
   const items = data.value || [];
 
-  // ✅ items are already normalized by backend
   return items.map((m) => ({
     id: m.id,
     title: m.title || "(no subject)",
-    when: formatLocalRange12h(m.startUTC, m.endUTC), // ✅ local + timezone + 12h
-    status: m.status,                                // ✅ backend status
+    when: formatLocalRange12h(m.startUTC, m.endUTC),
+    status: m.status,
     joinWebUrl: m.joinWebUrl || "",
     onlineProvider: m.onlineProvider || "",
     participants: [],
