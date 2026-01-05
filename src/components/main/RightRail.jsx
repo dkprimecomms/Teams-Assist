@@ -80,7 +80,6 @@ export default function RightRail({ selected }) {
                         />
                       </div>
 
-                      {/* Text */}
                       <div className="min-w-0">
                         <div className="font-semibold truncate">{p.name || "(no name)"}</div>
                         <div className="text-xs text-slate-500 truncate">{p.email}</div>
