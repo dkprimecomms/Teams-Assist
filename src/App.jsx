@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import MeetingsSidebar from "./components/sidebar/MeetingsSidebar";
@@ -7,8 +6,12 @@ import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
 
+// ✅ for whoami
+import { getTeamsToken } from "./api/authApi";
+import { postJson } from "./api/http";
+
 export default function App() {
-  const [statusTab, setStatusTab] = useState("upcoming"); // "upcoming" | "completed" | "skipped"
+  const [statusTab, setStatusTab] = useState("upcoming");
   const [selectedMeetingId, setSelectedMeetingId] = useState("");
 
   const [meetings, setMeetings] = useState([]);
@@ -23,11 +26,29 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  // ✅ responsive toggles
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [participantsOpen, setParticipantsOpen] = useState(false);
+  // ✅ signed-in user email to decide RIGHT side in chat
+  const [meEmail, setMeEmail] = useState("");
 
-  // 1) Load meetings (backend filters by status)
+  // ✅ Fetch whoami once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getTeamsToken();
+        const { res, data } = await postJson("/whoami", { token });
+        if (!cancelled && res.ok && data?.ok && data?.upn) {
+          setMeEmail(String(data.upn).toLowerCase());
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 1) Load meetings for selected tab
   useEffect(() => {
     let cancelled = false;
 
@@ -75,22 +96,9 @@ export default function App() {
     setSelectedMeetingId(meetings?.[0]?.id || "");
   }, [meetings, selectedMeetingId]);
 
-  // 3) Participants:
-  // ✅ Upcoming: use attendees from /graph/events (instant)
-  // ✅ Completed/Skipped: keep your invitees call (optional but fine)
+  // 3) Load participants
   useEffect(() => {
     if (!selectedMeetingId) return;
-
-    const m = meetings.find((x) => x.id === selectedMeetingId);
-    if (!m) return;
-
-    // upcoming -> attendees already returned by backend
-    if (m.status === "upcoming") {
-      setParticipants(m.attendees || []);
-      setParticipantsLoading(false);
-      setParticipantsError("");
-      return;
-    }
 
     let cancelled = false;
 
@@ -114,9 +122,9 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMeetingId, meetings]);
+  }, [selectedMeetingId]);
 
-  // 4) Transcript ONLY for completed
+  // 4) Load transcript ONLY for completed meetings with joinWebUrl
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -165,59 +173,32 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 5) Selected meeting object
+  // 5) selected meeting object
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // 6) Merge details + participants + transcript into selected
+  // 6) merge
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
     return {
       ...selectedRaw,
-      // prefer fetched invitees (completed), fallback to attendees (upcoming)
-      participants: (participants && participants.length ? participants : selectedRaw.attendees) || [],
-      organizer: selectedRaw.organizer || null,
-      attendees: selectedRaw.attendees || [],
-      location: selectedRaw.location || "",
-      bodyPreview: selectedRaw.bodyPreview || "",
-      transcript:
-        transcriptLoading ? "Loading transcript…" : transcriptError ? `Transcript load failed: ${transcriptError}` : transcriptText || "",
+      participants: participants || [],
+      transcript: transcriptLoading
+        ? "Loading transcript…"
+        : transcriptError
+        ? `Transcript load failed: ${transcriptError}`
+        : transcriptText || "",
     };
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
     <div className="h-screen w-full bg-slate-50 overflow-hidden">
-      {/* Mobile overlay for sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Mobile sidebar drawer */}
-      <div
-        className={[
-          "fixed z-50 inset-y-0 left-0 w-[320px] bg-white md:hidden",
-          "transform transition-transform duration-200 ease-out",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        ].join(" ")}
-      >
-        <MeetingsSidebar
-          statusTab={statusTab}
-          setStatusTab={setStatusTab}
-          meetings={meetings}
-          selectedMeetingId={selectedMeetingId}
-          setSelectedMeetingId={(id) => {
-            setSelectedMeetingId(id);
-            setSidebarOpen(false);
-          }}
-        />
-      </div>
-
-      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[320px_1fr]">
-        {/* Sidebar (desktop) */}
-        <div className="hidden md:block relative h-full min-h-0 border-r border-slate-200 bg-white">
+      <div className="h-full grid grid-cols-1 md:grid-cols-[320px_1fr] min-h-0">
+        {/* Sidebar */}
+        <div className="relative h-full min-h-0">
           <MeetingsSidebar
             statusTab={statusTab}
             setStatusTab={setStatusTab}
@@ -231,6 +212,7 @@ export default function App() {
               Loading meetings...
             </div>
           )}
+
           {meetingsError && (
             <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
               {meetingsError}
@@ -240,13 +222,7 @@ export default function App() {
 
         {/* Main */}
         <div className="relative h-full min-h-0 overflow-hidden">
-          <MainLayout
-            selected={selected}
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            participantsOpen={participantsOpen}
-            setParticipantsOpen={setParticipantsOpen}
-          />
+          <MainLayout selected={selected} meEmail={meEmail} />
 
           {participantsLoading && (
             <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
