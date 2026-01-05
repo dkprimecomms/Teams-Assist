@@ -22,8 +22,9 @@ export default function MeetingsSidebar({
     [meetings, statusTab]
   );
 
+  // Option B underline (sliding)
   const activeIndex = Math.max(0, TABS.indexOf(statusTab));
-  const translatePct = activeIndex * 100; // 0, 100, 200
+  const translatePct = activeIndex * 100;
 
   return (
     <aside className="h-full min-h-0 bg-white flex flex-col">
@@ -36,48 +37,39 @@ export default function MeetingsSidebar({
       {/* Tabs with sliding underline */}
       <div className="border-b border-slate-200 px-4">
         <div className="relative">
-          {/* Tab buttons */}
           <div className="grid grid-cols-3">
             {TABS.map((k) => (
-              <TabButton
-                key={k}
-                active={statusTab === k}
-                onClick={() => setStatusTab(k)}
-              >
+              <TabButton key={k} active={statusTab === k} onClick={() => setStatusTab(k)}>
                 {tabLabel(k)}
               </TabButton>
             ))}
           </div>
 
-          {/* Sliding underline track */}
           <div className="relative h-[2px]">
-           <div
-  className="absolute left-0 bottom-0 h-[2px] w-1/3 rounded-full bg-[#00A4EF] transition-transform duration-300 ease-out"
-  style={{ transform: `translateX(${translatePct}%)` }}
-/>
-
+            <div
+              className="absolute left-0 bottom-0 h-[2px] w-1/3 rounded-full bg-[#00A4EF] transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(${translatePct}%)` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Meetings list */}
-      <div className="flex-1 overflow-auto px-4 py-3">
-        <div className="space-y-2">
-          {filteredMeetings.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              No meetings in this tab.
-            </div>
-          ) : (
-            filteredMeetings.map((m) => (
+      {/* Meetings list (no boxes) */}
+      <div className="flex-1 overflow-auto px-2 py-2">
+        {filteredMeetings.length === 0 ? (
+          <div className="px-3 py-3 text-sm text-slate-600">No meetings in this tab.</div>
+        ) : (
+          <div>
+            {filteredMeetings.map((m) => (
               <MeetingRow
                 key={m.id}
                 meeting={m}
                 active={m.id === selectedMeetingId}
                 onSelect={setSelectedMeetingId}
               />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </aside>
   );
