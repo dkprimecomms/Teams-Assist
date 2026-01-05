@@ -221,7 +221,7 @@ export const mockTranscriptByMeetingId = Object.fromEntries(
 <v Sankar Ganesh Paramasivam>OK, I'll end the call. We'll see.</v>
 
 00:03:40.335 --> 00:03:42.415
-<v Dheepan Kanna>Sure, yes, sure.</v>
+<v Dheepan Kanna>Sure, yes, sure.</v> 
 
 `,
     ])

@@ -475,8 +475,18 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
               <SummarizeIcon className="h-5 w-5" />
             </button>
           )}
+          {selected && (
+  <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-900 max-h-64 overflow-auto">
+    <div className="font-semibold mb-1">DEBUG: selected object</div>
+    <pre className="whitespace-pre-wrap">
+      {JSON.stringify(selected, null, 2)}
+    </pre>
+  </div>
+)}
         </div>
+        
       )}
+
     </Card>
   );
 }
