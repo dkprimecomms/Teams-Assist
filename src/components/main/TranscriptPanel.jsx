@@ -1,7 +1,7 @@
-// src/components/main/TranscriptPanel.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
+import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
 
 function SummarizeIcon({ className = "" }) {
   return (
@@ -21,6 +21,120 @@ function initials(nameOrEmail) {
   const a = parts[0]?.[0] || "";
   const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
   return (a + b).toUpperCase();
+}
+
+function decodeHtml(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function stripTags(s) {
+  return String(s || "").replace(/<\/?[^>]+>/g, "").trim();
+}
+
+
+function parseVttToMessages(vtt) {
+  const text = String(vtt || "");
+  if (!text.trim()) return [];
+
+  const cleaned = text.replace(/^WEBVTT.*\n+/i, "");
+
+  const lines = cleaned.split("\n");
+
+  const messages = [];
+  let lastSpeaker = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // skip time lines
+    if (line.includes("-->")) continue;
+
+    // ✅ Teams format: <v Speaker>Text</v>
+    const vMatch = line.match(/^<v\s*([^>]*)>([\s\S]*?)<\/v>$/i);
+    if (vMatch) {
+      const rawSpeaker = decodeHtml(vMatch[1] || "").trim();
+      const rawText = decodeHtml(vMatch[2] || "").trim();
+
+      // If speaker is empty, use previous speaker if available; else Unknown
+      const speaker = rawSpeaker || lastSpeaker || "Unknown";
+      const msgText = stripTags(rawText);
+
+      if (msgText) {
+        messages.push({ speaker, text: msgText });
+        lastSpeaker = speaker;
+      }
+      continue;
+    }
+
+    // Fallback: "Name: text" (some transcripts look like this)
+    const colonMatch = line.match(/^([^:]{1,80}):\s*(.+)$/);
+    if (colonMatch) {
+      const speaker = colonMatch[1].trim() || "Unknown";
+      const msgText = colonMatch[2].trim();
+      messages.push({ speaker, text: msgText });
+      lastSpeaker = speaker;
+      continue;
+    }
+
+    // Fallback: plain text, append to last message if possible
+    const plain = stripTags(decodeHtml(line));
+    if (!plain) continue;
+
+    const last = messages[messages.length - 1];
+    if (last) last.text = `${last.text}\n${plain}`;
+    else messages.push({ speaker: "Unknown", text: plain });
+  }
+
+  // Merge consecutive messages by same speaker (chat feel)
+  const merged = [];
+  for (const m of messages) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.speaker === m.speaker) {
+      prev.text = `${prev.text}\n${m.text}`;
+    } else {
+      merged.push({ ...m });
+    }
+  }
+
+  return merged;
+}
+
+// ✅ Animated toggle (blue pill)
+function SegmentedToggle({ value, onChange }) {
+  const isTranscript = value === "transcript";
+
+  return (
+    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <span
+        className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out"
+        style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
+      />
+      <button
+        type="button"
+        onClick={() => onChange("transcript")}
+        className={[
+          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
+        ].join(" ")}
+      >
+        Transcript
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("summary")}
+        className={[
+          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
+        ].join(" ")}
+      >
+        Summary
+      </button>
+    </div>
+  );
 }
 
 function ParticipantsGroup({ participants = [] }) {
@@ -46,29 +160,17 @@ function ParticipantsGroup({ participants = [] }) {
   );
 }
 
-function Row({ label, children }) {
-  return (
-    <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100 last:border-b-0">
-      <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className="text-sm text-slate-900 min-w-0">{children}</div>
-    </div>
-  );
-}
-
 function stripHtml(s) {
   return String(s || "").replace(/<[^>]*>/g, "");
 }
 
 function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
-
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
   const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
-
   const joinUrl = selected?.joinWebUrl || raw?.onlineMeeting?.joinUrl || "";
   const location =
     selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
-
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
 
   return (
@@ -101,7 +203,6 @@ function MeetingDetails({ selected }) {
           <button
             disabled
             className="shrink-0 h-9 px-4 rounded-xl text-sm font-semibold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-            title="No join link available"
           >
             Join in Teams
           </button>
@@ -109,89 +210,51 @@ function MeetingDetails({ selected }) {
       </div>
 
       <div className="p-4">
-        <Row label="Organizer">
-          <div className="break-words">
+        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
+          <div className="text-xs font-semibold text-slate-500">Organizer</div>
+          <div className="text-sm text-slate-900 break-words">
             {organizerName || "(unknown)"}{" "}
             {organizerEmail ? <span className="text-slate-500">• {organizerEmail}</span> : null}
           </div>
-        </Row>
+        </div>
 
-        <Row label="Status">
-          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
-            {selected?.status || "upcoming"}
-          </span>
-        </Row>
+        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
+          <div className="text-xs font-semibold text-slate-500">Status</div>
+          <div>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+              {selected?.status || "upcoming"}
+            </span>
+          </div>
+        </div>
 
-        <Row label="Provider">
-          <div className="break-words">
+        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
+          <div className="text-xs font-semibold text-slate-500">Provider</div>
+          <div className="text-sm text-slate-900 break-words">
             {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
           </div>
-        </Row>
+        </div>
 
-        <Row label="Location">
-          <div className="break-words">{location || "(none)"}</div>
-        </Row>
+        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
+          <div className="text-xs font-semibold text-slate-500">Location</div>
+          <div className="text-sm text-slate-900 break-words">{location || "(none)"}</div>
+        </div>
 
-        <Row label="Description">
-          {description ? (
-            <div className="text-sm text-slate-700 whitespace-pre-wrap break-words">
-              {stripHtml(description).trim()}
-            </div>
-          ) : (
-            <span className="text-slate-500">(no description)</span>
-          )}
-        </Row>
+        <div className="grid grid-cols-[120px_1fr] gap-3 py-2">
+          <div className="text-xs font-semibold text-slate-500">Description</div>
+          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words">
+            {description ? stripHtml(description).trim() : "(no description)"}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ✅ Segmented toggle UI
-function SegmentedToggle({ value, onChange }) {
-  const isTranscript = value === "transcript";
-
-  return (
-    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-      {/* Sliding active pill */}
-      <span
-        className={[
-          "absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg",
-          "bg-[#00A4EF]",
-          "transition-transform duration-300 ease-out",
-        ].join(" ")}
-        style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
-      />
-
-      <button
-        type="button"
-        onClick={() => onChange("transcript")}
-        className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg",
-          "transition-colors duration-200",
-          isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
-        ].join(" ")}
-      >
-        Transcript
-      </button>
-
-      <button
-        type="button"
-        onClick={() => onChange("summary")}
-        className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg",
-          "transition-colors duration-200",
-          !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
-        ].join(" ")}
-      >
-        Summary
-      </button>
-    </div>
-  );
-}
-
-
 export default function TranscriptPanel({ selected, participants = [], onOpenParticipants }) {
   const [tab, setTab] = useState("transcript");
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const photoUrlByEmail = useParticipantPhotos(participants, API_BASE_URL);
 
   useEffect(() => {
     setTab("transcript");
@@ -208,10 +271,75 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
     [isCompleted, transcriptText]
   );
 
+  // Who is "me"? (best-effort)
+  const myEmail = useMemo(() => {
+    const org = selected?.organizer?.email;
+    if (org) return String(org).toLowerCase();
+    const organizer = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
+    if (organizer?.email) return String(organizer.email).toLowerCase();
+    return ""; // fallback later
+  }, [selected, participants]);
+
+  const messages = useMemo(() => {
+    if (!isCompleted) return [];
+    if (!transcriptText || transcriptText.startsWith("Loading")) return [];
+    if (transcriptText.startsWith("Transcript load failed")) return [];
+    return parseVttToMessages(transcriptText);
+  }, [isCompleted, transcriptText]);
+
+  // map speaker -> participant object (best-effort)
+  function findParticipantForSpeaker(speaker) {
+    const s = String(speaker || "").toLowerCase();
+
+    // match by name contains
+    const byName = (participants || []).find((p) => (p.name || "").toLowerCase().includes(s));
+    if (byName) return byName;
+
+    // match exact organizer label "Organizer"
+    if (s === "organizer") {
+      const org = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
+      if (org) return org;
+    }
+
+    return null;
+  }
+
+  function isMine(msg) {
+    // If we know my email, compare against matched participant email
+    const p = findParticipantForSpeaker(msg.speaker);
+    if (myEmail && p?.email) return String(p.email).toLowerCase() === myEmail;
+
+    // fallback: if speaker literally contains your name/email fragment
+    if (myEmail && msg.speaker && String(msg.speaker).toLowerCase().includes(myEmail.split("@")[0])) return true;
+
+    // last resort: treat "Dheepan" as mine if it exists in participants organizer (from mocks)
+    const org = (participants || []).find((x) => String(x.role).toLowerCase() === "organizer");
+    if (org?.name && msg.speaker) {
+      const a = org.name.toLowerCase().split(/\s+/)[0];
+      if (a && msg.speaker.toLowerCase().includes(a)) return true;
+    }
+
+    return false;
+  }
+
+  function avatarForParticipant(p, fallbackLabel) {
+    const email = (p?.email || "").toLowerCase();
+    const photo = email ? photoUrlByEmail[email] : null;
+
+    if (photo) {
+      return <img src={photo} alt={p?.name || p?.email} className="h-8 w-8 rounded-full object-cover border border-slate-200" />;
+    }
+
+    return (
+      <div className="h-8 w-8 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-700">
+        {initials(p?.name || p?.email || fallbackLabel)}
+      </div>
+    );
+  }
+
   function onSummarizeClick() {
     if (!canSummarize) return;
-    // ✅ auto-toggle to summary
-    setTab("summary");
+    setTab("summary"); // ✅ auto toggle
   }
 
   const headerTitle = (
@@ -224,7 +352,7 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
         )}
       </div>
 
-      {/* Only below lg (RightRail exists on lg+) */}
+      {/* Only below lg */}
       <div className="flex items-center gap-2 lg:hidden">
         <ParticipantsGroup participants={participants} />
         <button
@@ -254,25 +382,81 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
           : "Details for the selected meeting."
       }
     >
+      {/* Upcoming = Meeting Details */}
       {isUpcoming ? (
         <div className="h-full min-h-0 overflow-auto pr-1">
           <MeetingDetails selected={selected} />
         </div>
       ) : (
-        <div className="relative rounded-xl border border-slate-200 bg-slate-50 h-full min-h-0 overflow-hidden flex flex-col">
-          <div className="h-full min-h-0 overflow-auto">
-            <pre className="whitespace-pre-wrap break-words text-sm text-slate-900 leading-relaxed p-3">
-              {!selected
-                ? "Select a meeting."
-                : isCompleted
-                ? tab === "transcript"
-                  ? transcriptText || "No transcript loaded."
-                  : summaryText
-                : "No transcript for this meeting status."}
-            </pre>
+        <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
+          {/* Content */}
+          <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
+            {!selected ? (
+              <div className="text-sm text-slate-600">Select a meeting.</div>
+            ) : !isCompleted ? (
+              <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
+            ) : tab === "summary" ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 whitespace-pre-wrap break-words">
+                {summaryText}
+              </div>
+            ) : transcriptText.startsWith("Loading") ? (
+              <div className="text-sm text-slate-600">{transcriptText}</div>
+            ) : transcriptText.startsWith("Transcript load failed") ? (
+              <div className="text-sm text-rose-700">{transcriptText}</div>
+            ) : messages.length === 0 ? (
+              <div className="text-sm text-slate-600">No transcript loaded.</div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((msg, idx) => {
+                  const mine = isMine(msg);
+                  const p = findParticipantForSpeaker(msg.speaker);
+
+                  return (
+                    <div
+                      key={`${idx}-${msg.speaker}`}
+                      className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
+                    >
+                      {/* Left avatar */}
+                      {!mine && (
+                        <div className="shrink-0">
+                          {avatarForParticipant(p, msg.speaker)}
+                        </div>
+                      )}
+
+                      {/* Bubble */}
+                      <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
+                        <div
+                          className={[
+                            "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
+                            mine
+                              ? "bg-[#00A4EF] text-white border-[#00A4EF]"
+                              : "bg-white text-slate-900 border-slate-200",
+                          ].join(" ")}
+                        >
+                          {/* Speaker label for others */}
+                          {!mine && (
+                            <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                              {msg.speaker}
+                            </div>
+                          )}
+                          <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                        </div>
+                      </div>
+
+                      {/* Right avatar */}
+                      {mine && (
+                        <div className="shrink-0">
+                          {avatarForParticipant(p, "Me")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Summarize floating button only on Transcript tab */}
+          {/* Summarize floating button only on transcript tab */}
           {isCompleted && tab === "transcript" && (
             <button
               onClick={onSummarizeClick}
