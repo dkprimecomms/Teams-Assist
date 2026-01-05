@@ -29,22 +29,60 @@ function stripTags(s) {
   return String(s || "").replace(/<\/?[^>]+>/g, "").trim();
 }
 
-/** ✅ Teams VTT parser: <v Speaker>Text</v> */
-function parseVttToMessages(vtt) {
-  const text = String(vtt || "");
-  if (!text.trim()) return [];
+// ✅ "00:01:23.201" -> "01:23"
+function formatVttTimestamp(hmsMs) {
+  const s = String(hmsMs || "").trim();
+  const m = s.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+  if (!m) return "";
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ss = Number(m[3]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return "";
+  const totalMinutes = hh * 60 + mm;
+  const mm2 = String(totalMinutes).padStart(2, "0");
+  const ss2 = String(ss).padStart(2, "0");
+  return `${mm2}:${ss2}`;
+}
 
-  const cleaned = text.replace(/^WEBVTT.*\n+/i, "");
+/**
+ * ✅ Teams VTT parser that:
+ * - strips WEBVTT header
+ * - reads timestamps
+ * - extracts <v Speaker>Text</v>
+ * - attaches a "time" to each message (from cue start time)
+ * - merges consecutive same-speaker messages (keeps first time)
+ */
+function parseVttToMessages(vtt) {
+  const raw = String(vtt || "");
+  if (!raw.trim()) return [];
+
+  // normalize newlines
+  const normalized = raw.replace(/\r\n/g, "\n");
+
+  // remove WEBVTT header line(s)
+  const cleaned = normalized.replace(/^WEBVTT[^\n]*\n+/i, "");
+
   const lines = cleaned.split("\n");
 
   const messages = [];
   let lastSpeaker = null;
+  let currentCueTime = ""; // formatted timestamp for current cue
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
     if (!line) continue;
-    if (line.includes("-->")) continue;
 
+    // cue time line: "00:00:03.281 --> 00:00:04.401"
+    if (line.includes("-->")) {
+      const parts = line.split("-->");
+      const startRaw = (parts[0] || "").trim();
+      // take only hh:mm:ss.xxx
+      const startMatch = startRaw.match(/^(\d{2}:\d{2}:\d{2})(?:\.\d+)?$/);
+      currentCueTime = startMatch ? formatVttTimestamp(startMatch[1]) : "";
+      continue;
+    }
+
+    // <v Speaker>Text</v>
     const vMatch = line.match(/^<v\s*([^>]*)>([\s\S]*?)<\/v>$/i);
     if (vMatch) {
       const rawSpeaker = decodeHtml(vMatch[1] || "").trim();
@@ -54,7 +92,7 @@ function parseVttToMessages(vtt) {
       const msgText = stripTags(rawText);
 
       if (msgText) {
-        messages.push({ speaker, text: msgText });
+        messages.push({ speaker, text: msgText, time: currentCueTime || "" });
         lastSpeaker = speaker;
       }
       continue;
@@ -65,25 +103,30 @@ function parseVttToMessages(vtt) {
     if (colonMatch) {
       const speaker = colonMatch[1].trim() || "Unknown";
       const msgText = colonMatch[2].trim();
-      messages.push({ speaker, text: msgText });
+      messages.push({ speaker, text: msgText, time: currentCueTime || "" });
       lastSpeaker = speaker;
       continue;
     }
 
+    // fallback: plain text -> append to previous message
     const plain = stripTags(decodeHtml(line));
     if (!plain) continue;
 
     const last = messages[messages.length - 1];
     if (last) last.text = `${last.text}\n${plain}`;
-    else messages.push({ speaker: "Unknown", text: plain });
+    else messages.push({ speaker: "Unknown", text: plain, time: currentCueTime || "" });
   }
 
-  // merge consecutive same-speaker
+  // merge consecutive same-speaker (keep earliest time)
   const merged = [];
   for (const m of messages) {
     const prev = merged[merged.length - 1];
-    if (prev && prev.speaker === m.speaker) prev.text = `${prev.text}\n${m.text}`;
-    else merged.push({ ...m });
+    if (prev && prev.speaker === m.speaker) {
+      prev.text = `${prev.text}\n${m.text}`;
+      // keep prev.time
+    } else {
+      merged.push({ ...m });
+    }
   }
 
   return merged;
@@ -93,15 +136,12 @@ function findParticipantForSpeaker(speaker, participants) {
   const s = String(speaker || "").trim().toLowerCase();
   if (!s) return null;
 
-  // exact match
   let p = (participants || []).find((x) => String(x.name || "").trim().toLowerCase() === s);
   if (p) return p;
 
-  // contains match
   p = (participants || []).find((x) => String(x.name || "").toLowerCase().includes(s));
   if (p) return p;
 
-  // reverse contains
   p = (participants || []).find((x) => s.includes(String(x.name || "").toLowerCase()));
   return p || null;
 }
@@ -167,12 +207,18 @@ export default function TranscriptPanel({ selected, meEmail }) {
   const photoUrlByEmail = useParticipantPhotos(participants, API_BASE_URL);
 
   const canSummarize = useMemo(() => {
-    return isCompleted && transcriptText && !transcriptText.startsWith("Loading") && !transcriptText.startsWith("Transcript load failed");
+    return (
+      isCompleted &&
+      transcriptText &&
+      !transcriptText.startsWith("Loading") &&
+      !transcriptText.startsWith("Transcript load failed")
+    );
   }, [isCompleted, transcriptText]);
 
   const messages = useMemo(() => {
     if (!isCompleted) return [];
-    if (!transcriptText || transcriptText.startsWith("Loading") || transcriptText.startsWith("Transcript load failed")) return [];
+    if (!transcriptText || transcriptText.startsWith("Loading") || transcriptText.startsWith("Transcript load failed"))
+      return [];
     return parseVttToMessages(transcriptText);
   }, [isCompleted, transcriptText]);
 
@@ -199,7 +245,7 @@ export default function TranscriptPanel({ selected, meEmail }) {
 
   function onSummarizeClick() {
     if (!canSummarize) return;
-    setTab("summary"); // ✅ auto-toggle
+    setTab("summary");
   }
 
   return (
@@ -217,14 +263,13 @@ export default function TranscriptPanel({ selected, meEmail }) {
           : "AI summary of this meeting."
       }
     >
-      {/* Body container with scroll */}
       <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
           {!selected ? (
             <div className="text-sm text-slate-600">Select a meeting.</div>
           ) : !isCompleted ? (
             <div className="text-sm text-slate-600">
-              Upcoming meetings show meeting details (you already added that in Meeting Details view).
+              Upcoming meetings show meeting details (your Meeting Details view).
             </div>
           ) : tab === "summary" ? (
             <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 whitespace-pre-wrap break-words">
@@ -247,27 +292,31 @@ export default function TranscriptPanel({ selected, meEmail }) {
                     key={`${idx}-${msg.speaker}`}
                     className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
                   >
-                    {/* Left avatar */}
                     {!mine && <div className="shrink-0">{avatarNode(p, msg.speaker)}</div>}
 
-                    {/* Bubble */}
                     <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
                       <div
                         className={[
                           "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
-                          mine ? "bg-[#00A4EF] text-white border-[#00A4EF]" : "bg-white text-slate-900 border-slate-200",
+                          mine
+                            ? "bg-[#00A4EF] text-white border-[#00A4EF]"
+                            : "bg-white text-slate-900 border-slate-200",
                         ].join(" ")}
                       >
                         {!mine && (
-                          <div className="text-[11px] font-semibold text-slate-500 mb-1">
-                            {msg.speaker}
-                          </div>
+                          <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>
                         )}
                         <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                        {/* ✅ timestamp */}
+                        {msg.time ? (
+                          <div className={["mt-1 text-[11px]", mine ? "text-white/80" : "text-slate-400"].join(" ")}>
+                            {msg.time}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
-                    {/* Right avatar */}
                     {mine && <div className="shrink-0">{avatarNode(p, "Me")}</div>}
                   </div>
                 );
@@ -276,7 +325,6 @@ export default function TranscriptPanel({ selected, meEmail }) {
           )}
         </div>
 
-        {/* Summarize floating button */}
         {isCompleted && tab === "transcript" && (
           <button
             onClick={onSummarizeClick}
