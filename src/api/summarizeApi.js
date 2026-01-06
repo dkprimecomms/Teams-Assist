@@ -8,7 +8,7 @@ export async function summarizeTranscript({ title, transcriptVtt }) {
   const { res, data } = await postJson("/summarize", {
     token,
     title,
-    transcriptVtt,
+    transcriptVtt,  
   });
 
   if (!res.ok || !data?.ok) {

@@ -252,6 +252,9 @@ export default function TranscriptPanel({ selected, meEmail, onOpenSidebar, onFe
   }
 
   async function ensureSummary() {
+    if (String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true") {
+  return; // mock summary already available
+}
     if (!selected || !isCompleted) return;
     if (!canSummarize) return;
     if (selected.summaryObj) return;
@@ -328,68 +331,67 @@ export default function TranscriptPanel({ selected, meEmail, onOpenSidebar, onFe
         )
       }
     >
-      <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
-        <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
+      <div className="relative rounded-xl bg-white h-full min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto p-3 bg-white">
           {!selected ? (
             <div className="text-sm text-slate-600">Select a meeting.</div>
           ) : !isCompleted ? (
             <div className="text-sm text-slate-600">No transcript for upcoming/skipped meetings.</div>
           ) : tab === "summary" ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
-              {summaryLoading ? (
-                <div className="text-sm text-slate-600">Generating summary…</div>
-              ) : summaryError ? (
-                <div className="text-sm text-rose-700">Summary failed: {summaryError}</div>
-              ) : summaryObj ? (
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-1">Purpose</div>
-                    <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.purpose || "—"}</div>
-                  </div>
+  <>
+    {summaryLoading ? (
+      <div className="text-sm text-slate-600">Generating summary…</div>
+    ) : summaryError ? (
+      <div className="text-sm text-rose-700">Summary failed: {summaryError}</div>
+    ) : summaryObj ? (
+      <div className="space-y-4">
+        <div >
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-1">Purpose</div>
+          <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.purpose || "—"}</div>
+        </div>
 
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-2">Takeaways</div>
-                    {summaryObj.takeaways?.length ? (
-                      <ul className="list-disc pl-5 text-sm text-slate-900 space-y-1">
-                        {summaryObj.takeaways.map((t, i) => (
-                          <li key={i}>{t}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm text-slate-600">—</div>
-                    )}
-                  </div>
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Takeaways</div>
+          {summaryObj.takeaways?.length ? (
+            <ul className="list-disc pl-5 text-sm text-slate-900 space-y-1">
+              {summaryObj.takeaways.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-sm text-slate-600">—</div>
+          )}
+        </div>
 
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-1">Detailed summary</div>
-                    <div className="text-sm text-slate-900 whitespace-pre-wrap">
-                      {summaryObj.detailedSummary || "—"}
-                    </div>
-                  </div>
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Detailed summary</div>
+          <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.detailedSummary || "—"}</div>
+        </div>
 
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-2">Action items</div>
-                    {summaryObj.actionItems?.length ? (
-                      <div className="space-y-2">
-                        {summaryObj.actionItems.map((a, i) => (
-                          <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                            <div className="text-sm text-slate-900 font-medium">{a.task || "—"}</div>
-                            <div className="text-xs text-slate-600 mt-1">
-                              Owner: {a.owner ?? "—"} <span className="text-slate-300">•</span> Due: {a.dueDate ?? "—"}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-slate-600">No follow-up tasks found.</div>
-                    )}
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Action items</div>
+          {summaryObj.actionItems?.length ? (
+            <div className="space-y-2">
+              {summaryObj.actionItems.map((a, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-sm text-slate-900 font-medium">{a.task || "—"}</div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    Owner: {a.owner ?? "—"} <span className="text-slate-300">•</span> Due: {a.dueDate ?? "—"}
                   </div>
                 </div>
-              ) : (
-                <div className="text-sm text-slate-600">No summary yet. Click Summary to generate.</div>
-              )}
+              ))}
             </div>
-          ) : transcriptText.startsWith("Loading") ? (
+          ) : (
+            <div className="text-sm text-slate-600">No follow-up tasks found.</div>
+          )}
+        </div>
+      </div>
+    ) : (
+      <div className="text-sm text-slate-600">No summary yet. Click Summary to generate.</div>
+    )}
+  </>
+) : transcriptText.startsWith("Loading") ? (
+
             <div className="text-sm text-slate-600">{transcriptText}</div>
           ) : transcriptText.startsWith("Transcript load failed") ? (
             <div className="text-sm text-rose-700">{transcriptText}</div>
@@ -412,7 +414,7 @@ export default function TranscriptPanel({ selected, meEmail, onOpenSidebar, onFe
                       <div
                         className={[
                           "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
-                          mine ? "bg-[#00A4EF] text-white border-[#00A4EF]" : "bg-white text-slate-900 border-slate-200",
+                          mine ? "bg-[#00A4EF] text-white border-[#00A4EF]" : "bg-slate-50 text-slate-900 border-slate-200",
                         ].join(" ")}
                       >
                         {!mine && <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>}

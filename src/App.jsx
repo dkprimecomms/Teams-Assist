@@ -6,6 +6,8 @@ import MainLayout from "./components/main/MainLayout";
 import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
+import { mockSummaryByMeetingId } from "./mocks/mockData";
+
 
 // ✅ for whoami
 import { getTeamsToken } from "./api/authApi";
@@ -217,12 +219,14 @@ export default function App() {
         ? `Transcript load failed: ${transcriptError}`
         : transcriptText || "";
 
+    const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
     return {
       ...selectedRaw,
       participants: participants || [],
       transcript: mergedTranscript,
-      summaryObj: summaryByMeetingId[selectedRaw.id] || null,
-    };
+      summaryObj: USE_MOCKS
+      ? mockSummaryByMeetingId[selectedRaw.id] || null
+      : summaryByMeetingId[selectedRaw.id] || null,    };
   }, [
     selectedRaw,
     participants,

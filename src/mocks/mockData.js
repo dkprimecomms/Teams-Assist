@@ -256,3 +256,36 @@ export const mockTranscriptByMeetingId = Object.fromEntries(
 `,
     ])
 );
+// -----------------------------
+// SUMMARY (only for completed)
+// -----------------------------
+export const mockSummaryByMeetingId = Object.fromEntries(
+  mockMeetings
+    .filter((m) => m.status === "completed")
+    .map((m) => [
+      m.id,
+      {
+        purpose:
+          "To discuss and finalize the release plan for the upcoming product launch.",
+        takeaways: [
+          "The release plan needs to be finalized this week.",
+          "A checklist is required before release.",
+          "Bob will prepare the checklist.",
+        ],
+        detailedSummary:
+          "The team discussed the current status of the release plan and agreed that finalization is required before proceeding. Bob volunteered to prepare a detailed checklist to ensure all release requirements are met. The discussion emphasized keeping timelines tight and ensuring clarity across stakeholders.",
+        actionItems: [
+          {
+            task: "Prepare release checklist",
+            owner: "Bob",
+            dueDate: "Friday",
+          },
+          {
+            task: "Review final release plan",
+            owner: "Team",
+            dueDate: "Next meeting",
+          },
+        ],
+      },
+    ])
+);
