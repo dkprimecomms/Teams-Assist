@@ -1,6 +1,9 @@
+// src/components/main/TranscriptPanel.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
+import ParticipantsIcon from "../icons/ParticipantsIcon";
+
 
 function SummarizeIcon({ className = "" }) {
   return (
@@ -9,6 +12,16 @@ function SummarizeIcon({ className = "" }) {
       <path d="M4 12h10" />
       <path d="M4 18h16" />
       <path d="M16 10l4 2-4 2z" />
+    </svg>
+  );
+}
+
+function MenuIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
     </svg>
   );
 }
@@ -29,7 +42,7 @@ function stripTags(s) {
   return String(s || "").replace(/<\/?[^>]+>/g, "").trim();
 }
 
-// ✅ "00:01:23.201" -> "01:23"
+// "00:01:23.201" -> "01:23"
 function formatVttTimestamp(hmsMs) {
   const s = String(hmsMs || "").trim();
   const m = s.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
@@ -45,7 +58,7 @@ function formatVttTimestamp(hmsMs) {
 }
 
 /**
- * ✅ Teams VTT parser that:
+ * Teams VTT parser:
  * - strips WEBVTT header
  * - reads timestamps
  * - extracts <v Speaker>Text</v>
@@ -56,33 +69,26 @@ function parseVttToMessages(vtt) {
   const raw = String(vtt || "");
   if (!raw.trim()) return [];
 
-  // normalize newlines
   const normalized = raw.replace(/\r\n/g, "\n");
-
-  // remove WEBVTT header line(s)
   const cleaned = normalized.replace(/^WEBVTT[^\n]*\n+/i, "");
-
   const lines = cleaned.split("\n");
 
   const messages = [];
   let lastSpeaker = null;
-  let currentCueTime = ""; // formatted timestamp for current cue
+  let currentCueTime = "";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // cue time line: "00:00:03.281 --> 00:00:04.401"
     if (line.includes("-->")) {
       const parts = line.split("-->");
       const startRaw = (parts[0] || "").trim();
-      // take only hh:mm:ss.xxx
       const startMatch = startRaw.match(/^(\d{2}:\d{2}:\d{2})(?:\.\d+)?$/);
       currentCueTime = startMatch ? formatVttTimestamp(startMatch[1]) : "";
       continue;
     }
 
-    // <v Speaker>Text</v>
     const vMatch = line.match(/^<v\s*([^>]*)>([\s\S]*?)<\/v>$/i);
     if (vMatch) {
       const rawSpeaker = decodeHtml(vMatch[1] || "").trim();
@@ -98,7 +104,6 @@ function parseVttToMessages(vtt) {
       continue;
     }
 
-    // fallback: "Name: text"
     const colonMatch = line.match(/^([^:]{1,80}):\s*(.+)$/);
     if (colonMatch) {
       const speaker = colonMatch[1].trim() || "Unknown";
@@ -108,7 +113,6 @@ function parseVttToMessages(vtt) {
       continue;
     }
 
-    // fallback: plain text -> append to previous message
     const plain = stripTags(decodeHtml(line));
     if (!plain) continue;
 
@@ -117,13 +121,12 @@ function parseVttToMessages(vtt) {
     else messages.push({ speaker: "Unknown", text: plain, time: currentCueTime || "" });
   }
 
-  // merge consecutive same-speaker (keep earliest time)
+  // merge consecutive same-speaker
   const merged = [];
   for (const m of messages) {
     const prev = merged[merged.length - 1];
     if (prev && prev.speaker === m.speaker) {
       prev.text = `${prev.text}\n${m.text}`;
-      // keep prev.time
     } else {
       merged.push({ ...m });
     }
@@ -156,7 +159,7 @@ function isMineMessage(msg, participants, meEmail) {
   return String(p.email).toLowerCase() === me;
 }
 
-// ✅ Animated blue pill toggle
+// Animated blue pill toggle
 function SegmentedToggle({ value, onChange }) {
   const isTranscript = value === "transcript";
 
@@ -190,12 +193,14 @@ function SegmentedToggle({ value, onChange }) {
   );
 }
 
-export default function TranscriptPanel({ selected, meEmail }) {
+export default function TranscriptPanel({ selected, meEmail, onOpenSidebar }) {
   const [tab, setTab] = useState("transcript");
+  const [participantsOpen, setParticipantsOpen] = useState(false);
 
-  useEffect(() => {
-    setTab("transcript");
-  }, [selected?.id]);
+ useEffect(() => {
+  setTab("transcript");
+  setParticipantsOpen(false);
+}, [selected?.id]);
 
   const isCompleted = selected?.status === "completed";
   const transcriptText = selected?.transcript || "";
@@ -247,21 +252,88 @@ export default function TranscriptPanel({ selected, meEmail }) {
     if (!canSummarize) return;
     setTab("summary");
   }
-
+function statusDotClass(response) {
+  const r = (response || "").toLowerCase();
+  if (r === "accepted") return "bg-emerald-500";
+  if (r === "declined") return "bg-rose-500";
+  if (r === "tentativelyaccepted") return "bg-amber-500";
+  return "bg-slate-300";
+}
   return (
+    
     <Card
       className="h-full w-full"
       bodyClassName="min-h-0"
-      title={isCompleted ? <SegmentedToggle value={tab} onChange={setTab} /> : "Meeting Details"}
-      subtitle={
-        !selected
-          ? "Select a meeting."
-          : !isCompleted
-          ? "No transcript for upcoming/skipped meetings."
-          : tab === "transcript"
-          ? "Chat-style transcript."
-          : "AI summary of this meeting."
-      }
+      // ✅ Header: left = menu + meeting details, right = toggle (completed only)
+     title={
+  selected ? (
+    <div className="flex items-start justify-between gap-3 w-full">
+      {/* LEFT: buttons + meeting details */}
+      <div className="flex items-start gap-2 min-w-0">
+        {/* ✅ MOBILE: separate buttons */}
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            type="button"
+            onClick={onOpenSidebar}
+            className="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+            title="Meetings"
+          >
+            <MenuIcon className="h-5 w-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen((v) => !v)}
+            className="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+            title="Participants"
+          >
+            <ParticipantsIcon />
+          </button>
+        </div>
+
+        {/* ✅ TABLET: grouped buttons (md → <lg) */}
+        <div className="hidden md:flex xl:hidden items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={onOpenSidebar}
+            className="h-10 w-10 inline-flex items-center justify-center text-slate-700 hover:bg-slate-50"
+            title="Meetings"
+          >
+            <MenuIcon className="h-5 w-5" />
+          </button>
+
+          <div className="h-6 w-px bg-slate-200" />
+
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen((v) => !v)}
+            className="h-10 w-10 inline-flex items-center justify-center text-slate-700 hover:bg-slate-50"
+            title="Participants"
+          >
+            <ParticipantsIcon />
+          </button>
+        </div>
+
+        {/* Meeting details */}
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-900 truncate">
+            {selected.title || "(no subject)"}
+          </div>
+          <div className="mt-0.5 text-xs text-slate-500 truncate">{selected.when || ""}</div>
+        </div>
+      </div>
+
+      {/* RIGHT: transcript/summary toggle only for completed */}
+      {isCompleted ? <SegmentedToggle value={tab} onChange={setTab} /> : null}
+    </div>
+  ) : (
+    <div className="w-full flex items-center justify-between">
+      <span>Meeting Details</span>
+    </div>
+  )
+}
+
+  
     >
       <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
@@ -298,17 +370,12 @@ export default function TranscriptPanel({ selected, meEmail }) {
                       <div
                         className={[
                           "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
-                          mine
-                            ? "bg-[#00A4EF] text-white border-[#00A4EF]"
-                            : "bg-white text-slate-900 border-slate-200",
+                          mine ? "bg-[#00A4EF] text-white border-[#00A4EF]" : "bg-white text-slate-900 border-slate-200",
                         ].join(" ")}
                       >
-                        {!mine && (
-                          <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>
-                        )}
+                        {!mine && <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>}
                         <div className="whitespace-pre-wrap break-words">{msg.text}</div>
 
-                        {/* ✅ timestamp */}
                         {msg.time ? (
                           <div className={["mt-1 text-[11px]", mine ? "text-white/80" : "text-slate-400"].join(" ")}>
                             {msg.time}
@@ -344,6 +411,94 @@ export default function TranscriptPanel({ selected, meEmail }) {
           </button>
         )}
       </div>
+
+{/* ✅ Tablet/Mobile Participants Bottom Sheet (slides from below) */}
+<div className="xl:hidden">
+  {/* Backdrop */}
+  <div
+    className={[
+      "absolute inset-0 z-20 bg-black/30 transition-opacity",
+      participantsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+    ].join(" ")}
+    onClick={() => setParticipantsOpen(false)}
+  />
+
+  {/* Sheet */}
+  <div
+    className={[
+      "absolute left-0 right-0 bottom-0 z-30",
+      "bg-white border-t border-slate-200",
+      "rounded-t-2xl shadow-xl",
+      "transition-transform duration-300 ease-out",
+      participantsOpen ? "translate-y-0" : "translate-y-full",
+    ].join(" ")}
+    style={{ height: "45%" }} // adjust: 40–60% works well
+  >
+    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+      <div className="text-sm font-semibold text-slate-900">Participants</div>
+      <button
+        type="button"
+        onClick={() => setParticipantsOpen(false)}
+        className="text-sm text-slate-600 hover:text-slate-900"
+      >
+        Close
+      </button>
+    </div>
+
+    <div className="h-[calc(100%-49px)] overflow-auto p-3 bg-slate-50">
+      {participants.length === 0 ? (
+        <div className="text-sm text-slate-500">No participants returned for this meeting.</div>
+      ) : (
+        <ul className="space-y-2">
+          {participants.map((p) => {
+            const email = (p.email || "").toLowerCase();
+            const photo = photoUrlByEmail[email];
+
+            return (
+              <li
+                key={`${email}-${p.role}`}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 flex items-center gap-3"
+              >
+                <div className="relative shrink-0">
+                  {photo ? (
+                    <img
+                      src={photo}
+                      alt={p.name || p.email}
+                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
+                      {initials(p.name || p.email)}
+                    </div>
+                  )}
+
+                  <span
+                    className={[
+                      "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white",
+                      statusDotClass(p.response),
+                    ].join(" ")}
+                    title={p.response || "no response"}
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{p.name || "(no name)"}</div>
+                  <div className="text-xs text-slate-500 truncate">{p.email}</div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    {p.role}
+                    {p.response ? ` • ${p.response}` : ""}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  </div>
+</div>
+
+
     </Card>
   );
 }

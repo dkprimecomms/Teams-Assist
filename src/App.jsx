@@ -28,6 +28,8 @@ export default function App() {
 
   // ✅ signed-in user email to decide RIGHT side in chat
   const [meEmail, setMeEmail] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
 
   // ✅ Fetch whoami once
   useEffect(() => {
@@ -195,47 +197,81 @@ export default function App() {
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-    <div className="h-screen w-full bg-slate-50 overflow-hidden">
-      <div className="h-full grid grid-cols-1 md:grid-cols-[320px_1fr] min-h-0">
-        {/* Sidebar */}
-        <div className="relative h-full min-h-0">
+  <div className="h-[100dvh] w-full bg-slate-50 overflow-hidden relative">
+    <div className="h-full grid grid-cols-1 lg:grid-cols-[320px_1fr] min-h-0">
+      
+      {/* Sidebar (Desktop only) */}
+      <div className="relative h-full min-h-0 hidden lg:block">
+        <MeetingsSidebar
+          statusTab={statusTab}
+          setStatusTab={setStatusTab}
+          meetings={meetings}
+          selectedMeetingId={selectedMeetingId}
+          setSelectedMeetingId={setSelectedMeetingId}
+        />
+        {/* loading/errors as before */}
+      </div>
+
+      {/* Main */}
+      <div className="relative h-full min-h-0 overflow-hidden">
+        <MainLayout
+          selected={selected}
+          meEmail={meEmail}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+        {/* participantsLoading / participantsError as before */}
+      </div>
+    </div>
+
+    {/* ✅ MOVE DRAWER HERE: OUTSIDE GRID */}
+    <div className="lg:hidden">
+      {/* Backdrop */}
+      <div
+        className={[
+          "fixed inset-0 z-40 bg-black/30 transition-opacity",
+          sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        ].join(" ")}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Drawer */}
+      <div
+        className={[
+          "fixed top-0 left-0 bottom-0 z-50 w-[320px] max-w-[90vw] bg-white shadow-xl",
+          "transition-transform duration-300 ease-out",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <div className="text-base font-semibold text-slate-900">Meetings</div>
+            <div className="text-xs text-slate-500">Filter and select a meeting</div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="h-[calc(100%-73px)]">
           <MeetingsSidebar
             statusTab={statusTab}
             setStatusTab={setStatusTab}
             meetings={meetings}
             selectedMeetingId={selectedMeetingId}
-            setSelectedMeetingId={setSelectedMeetingId}
+            setSelectedMeetingId={(id) => {
+              setSelectedMeetingId(id);
+              setSidebarOpen(false);
+            }}
           />
-
-          {loadingMeetings && (
-            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-              Loading meetings...
-            </div>
-          )}
-
-          {meetingsError && (
-            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
-              {meetingsError}
-            </div>
-          )}
-        </div>
-
-        {/* Main */}
-        <div className="relative h-full min-h-0 overflow-hidden">
-          <MainLayout selected={selected} meEmail={meEmail} />
-
-          {participantsLoading && (
-            <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-              Loading participants...
-            </div>
-          )}
-          {participantsError && (
-            <div className="absolute top-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
-              {participantsError}
-            </div>
-          )}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
+
 }
