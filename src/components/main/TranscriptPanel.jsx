@@ -4,7 +4,6 @@ import Card from "../ui/Card";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
 
-
 function SummarizeIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,14 +56,6 @@ function formatVttTimestamp(hmsMs) {
   return `${mm2}:${ss2}`;
 }
 
-/**
- * Teams VTT parser:
- * - strips WEBVTT header
- * - reads timestamps
- * - extracts <v Speaker>Text</v>
- * - attaches a "time" to each message (from cue start time)
- * - merges consecutive same-speaker messages (keeps first time)
- */
 function parseVttToMessages(vtt) {
   const raw = String(vtt || "");
   if (!raw.trim()) return [];
@@ -121,15 +112,11 @@ function parseVttToMessages(vtt) {
     else messages.push({ speaker: "Unknown", text: plain, time: currentCueTime || "" });
   }
 
-  // merge consecutive same-speaker
   const merged = [];
   for (const m of messages) {
     const prev = merged[merged.length - 1];
-    if (prev && prev.speaker === m.speaker) {
-      prev.text = `${prev.text}\n${m.text}`;
-    } else {
-      merged.push({ ...m });
-    }
+    if (prev && prev.speaker === m.speaker) prev.text = `${prev.text}\n${m.text}`;
+    else merged.push({ ...m });
   }
 
   return merged;
@@ -159,21 +146,33 @@ function isMineMessage(msg, participants, meEmail) {
   return String(p.email).toLowerCase() === me;
 }
 
-// Animated blue pill toggle
+function statusDotClass(response) {
+  const r = (response || "").toLowerCase();
+  if (r === "accepted") return "bg-emerald-500";
+  if (r === "declined") return "bg-rose-500";
+  if (r === "tentativelyaccepted") return "bg-amber-500";
+  return "bg-slate-300";
+}
+
+// ✅ Smaller on mobile (md+ normal)
 function SegmentedToggle({ value, onChange }) {
   const isTranscript = value === "transcript";
 
   return (
-    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+    <div className={["relative inline-flex rounded-xl border border-slate-200 bg-slate-50", "p-0.5 md:p-1"].join(" ")}>
       <span
-        className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out"
+        className={[
+          "absolute top-0.5 bottom-0.5 rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out",
+          "w-[calc(50%-2px)] md:w-[calc(50%-4px)]",
+        ].join(" ")}
         style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
       />
       <button
         type="button"
         onClick={() => onChange("transcript")}
         className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          "relative z-10 rounded-lg font-semibold transition-colors duration-200",
+          "text-xs px-2 py-1 md:text-sm md:px-3 md:py-1.5",
           isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
         ].join(" ")}
       >
@@ -183,7 +182,8 @@ function SegmentedToggle({ value, onChange }) {
         type="button"
         onClick={() => onChange("summary")}
         className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          "relative z-10 rounded-lg font-semibold transition-colors duration-200",
+          "text-xs px-2 py-1 md:text-sm md:px-3 md:py-1.5",
           !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
         ].join(" ")}
       >
@@ -193,19 +193,22 @@ function SegmentedToggle({ value, onChange }) {
   );
 }
 
-export default function TranscriptPanel({ selected, meEmail, onOpenSidebar }) {
+export default function TranscriptPanel({ selected, meEmail, onOpenSidebar, onFetchSummary }) {
   const [tab, setTab] = useState("transcript");
   const [participantsOpen, setParticipantsOpen] = useState(false);
 
- useEffect(() => {
-  setTab("transcript");
-  setParticipantsOpen(false);
-}, [selected?.id]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+
+  useEffect(() => {
+    setTab("transcript");
+    setParticipantsOpen(false);
+    setSummaryError("");
+    setSummaryLoading(false);
+  }, [selected?.id]);
 
   const isCompleted = selected?.status === "completed";
   const transcriptText = selected?.transcript || "";
-  const summaryText = selected?.summary || "No summary yet.";
-
   const participants = selected?.participants || [];
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -248,104 +251,143 @@ export default function TranscriptPanel({ selected, meEmail, onOpenSidebar }) {
     );
   }
 
-  function onSummarizeClick() {
+  async function ensureSummary() {
+    if (!selected || !isCompleted) return;
+    if (!canSummarize) return;
+    if (selected.summaryObj) return;
+
+    setSummaryError("");
+    setSummaryLoading(true);
+    try {
+      await onFetchSummary?.(selected);
+    } catch (e) {
+      setSummaryError(String(e?.message || e));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  async function onSummarizeClick() {
     if (!canSummarize) return;
     setTab("summary");
+    await ensureSummary();
   }
-function statusDotClass(response) {
-  const r = (response || "").toLowerCase();
-  if (r === "accepted") return "bg-emerald-500";
-  if (r === "declined") return "bg-rose-500";
-  if (r === "tentativelyaccepted") return "bg-amber-500";
-  return "bg-slate-300";
-}
+
+  const summaryObj = selected?.summaryObj || null;
+
   return (
-    
     <Card
       className="h-full w-full"
       bodyClassName="min-h-0"
-      // ✅ Header: left = menu + meeting details, right = toggle (completed only)
-     title={
-  selected ? (
-    <div className="flex items-start justify-between gap-3 w-full">
-      {/* LEFT: buttons + meeting details */}
-      <div className="flex items-start gap-2 min-w-0">
-        {/* ✅ MOBILE: separate buttons */}
-        <div className="flex items-center gap-2 md:hidden">
-          <button
-            type="button"
-            onClick={onOpenSidebar}
-            className="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
-            title="Meetings"
-          >
-            <MenuIcon className="h-5 w-5" />
-          </button>
+      title={
+        selected ? (
+          <div className="flex items-start justify-between gap-3 w-full">
+            <div className="flex items-start gap-2 min-w-0">
+              {/* ✅ Meetings drawer button */}
+              <button
+                type="button"
+                onClick={onOpenSidebar}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Meetings"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setParticipantsOpen((v) => !v)}
-            className="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
-            title="Participants"
-          >
-            <ParticipantsIcon />
-          </button>
-        </div>
+              {/* ✅ Tablet grouped icon (Participants only). Mobile shows same button, that’s fine. */}
+              <button
+                type="button"
+                onClick={() => setParticipantsOpen(true)}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Participants"
+              >
+                <ParticipantsIcon />
+              </button>
 
-        {/* ✅ TABLET: grouped buttons (md → <lg) */}
-        <div className="hidden md:flex xl:hidden items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <button
-            type="button"
-            onClick={onOpenSidebar}
-            className="h-10 w-10 inline-flex items-center justify-center text-slate-700 hover:bg-slate-50"
-            title="Meetings"
-          >
-            <MenuIcon className="h-5 w-5" />
-          </button>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900 truncate">
+                  {selected.title || "(no subject)"}
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500 truncate">{selected.when || ""}</div>
+              </div>
+            </div>
 
-          <div className="h-6 w-px bg-slate-200" />
-
-          <button
-            type="button"
-            onClick={() => setParticipantsOpen((v) => !v)}
-            className="h-10 w-10 inline-flex items-center justify-center text-slate-700 hover:bg-slate-50"
-            title="Participants"
-          >
-            <ParticipantsIcon />
-          </button>
-        </div>
-
-        {/* Meeting details */}
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 truncate">
-            {selected.title || "(no subject)"}
+            {isCompleted ? (
+              <SegmentedToggle
+                value={tab}
+                onChange={async (next) => {
+                  setTab(next);
+                  if (next === "summary") await ensureSummary();
+                }}
+              />
+            ) : null}
           </div>
-          <div className="mt-0.5 text-xs text-slate-500 truncate">{selected.when || ""}</div>
-        </div>
-      </div>
-
-      {/* RIGHT: transcript/summary toggle only for completed */}
-      {isCompleted ? <SegmentedToggle value={tab} onChange={setTab} /> : null}
-    </div>
-  ) : (
-    <div className="w-full flex items-center justify-between">
-      <span>Meeting Details</span>
-    </div>
-  )
-}
-
-  
+        ) : (
+          <div className="w-full flex items-center justify-between">
+            <span>Meeting Details</span>
+          </div>
+        )
+      }
     >
       <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
           {!selected ? (
             <div className="text-sm text-slate-600">Select a meeting.</div>
           ) : !isCompleted ? (
-            <div className="text-sm text-slate-600">
-              Upcoming meetings show meeting details (your Meeting Details view).
-            </div>
+            <div className="text-sm text-slate-600">No transcript for upcoming/skipped meetings.</div>
           ) : tab === "summary" ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 whitespace-pre-wrap break-words">
-              {summaryText}
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              {summaryLoading ? (
+                <div className="text-sm text-slate-600">Generating summary…</div>
+              ) : summaryError ? (
+                <div className="text-sm text-rose-700">Summary failed: {summaryError}</div>
+              ) : summaryObj ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 mb-1">Purpose</div>
+                    <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.purpose || "—"}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 mb-2">Takeaways</div>
+                    {summaryObj.takeaways?.length ? (
+                      <ul className="list-disc pl-5 text-sm text-slate-900 space-y-1">
+                        {summaryObj.takeaways.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-sm text-slate-600">—</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 mb-1">Detailed summary</div>
+                    <div className="text-sm text-slate-900 whitespace-pre-wrap">
+                      {summaryObj.detailedSummary || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 mb-2">Action items</div>
+                    {summaryObj.actionItems?.length ? (
+                      <div className="space-y-2">
+                        {summaryObj.actionItems.map((a, i) => (
+                          <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                            <div className="text-sm text-slate-900 font-medium">{a.task || "—"}</div>
+                            <div className="text-xs text-slate-600 mt-1">
+                              Owner: {a.owner ?? "—"} <span className="text-slate-300">•</span> Due: {a.dueDate ?? "—"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-600">No follow-up tasks found.</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-600">No summary yet. Click Summary to generate.</div>
+              )}
             </div>
           ) : transcriptText.startsWith("Loading") ? (
             <div className="text-sm text-slate-600">{transcriptText}</div>
@@ -410,95 +452,91 @@ function statusDotClass(response) {
             <SummarizeIcon className="h-5 w-5" />
           </button>
         )}
-      </div>
 
-{/* ✅ Tablet/Mobile Participants Bottom Sheet (slides from below) */}
-<div className="xl:hidden">
-  {/* Backdrop */}
-  <div
-    className={[
-      "absolute inset-0 z-20 bg-black/30 transition-opacity",
-      participantsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
-    ].join(" ")}
-    onClick={() => setParticipantsOpen(false)}
-  />
+        {/* ✅ Participants bottom-sheet (tablet/mobile) */}
+        <div className="xl:hidden">
+          <div
+            className={[
+              "absolute inset-0 z-20 bg-black/30 transition-opacity",
+              participantsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+            ].join(" ")}
+            onClick={() => setParticipantsOpen(false)}
+          />
 
-  {/* Sheet */}
-  <div
-    className={[
-      "absolute left-0 right-0 bottom-0 z-30",
-      "bg-white border-t border-slate-200",
-      "rounded-t-2xl shadow-xl",
-      "transition-transform duration-300 ease-out",
-      participantsOpen ? "translate-y-0" : "translate-y-full",
-    ].join(" ")}
-    style={{ height: "45%" }} // adjust: 40–60% works well
-  >
-    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-      <div className="text-sm font-semibold text-slate-900">Participants</div>
-      <button
-        type="button"
-        onClick={() => setParticipantsOpen(false)}
-        className="text-sm text-slate-600 hover:text-slate-900"
-      >
-        Close
-      </button>
-    </div>
-
-    <div className="h-[calc(100%-49px)] overflow-auto p-3 bg-slate-50">
-      {participants.length === 0 ? (
-        <div className="text-sm text-slate-500">No participants returned for this meeting.</div>
-      ) : (
-        <ul className="space-y-2">
-          {participants.map((p) => {
-            const email = (p.email || "").toLowerCase();
-            const photo = photoUrlByEmail[email];
-
-            return (
-              <li
-                key={`${email}-${p.role}`}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 flex items-center gap-3"
+          <div
+            className={[
+              "absolute left-0 right-0 bottom-0 z-30",
+              "bg-white border-t border-slate-200",
+              "rounded-t-2xl shadow-xl",
+              "transition-transform duration-300 ease-out",
+              participantsOpen ? "translate-y-0" : "translate-y-full",
+            ].join(" ")}
+            style={{ height: "45%" }}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Participants</div>
+              <button
+                type="button"
+                onClick={() => setParticipantsOpen(false)}
+                className="text-sm text-slate-600 hover:text-slate-900"
               >
-                <div className="relative shrink-0">
-                  {photo ? (
-                    <img
-                      src={photo}
-                      alt={p.name || p.email}
-                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
-                      {initials(p.name || p.email)}
-                    </div>
-                  )}
+                Close
+              </button>
+            </div>
 
-                  <span
-                    className={[
-                      "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white",
-                      statusDotClass(p.response),
-                    ].join(" ")}
-                    title={p.response || "no response"}
-                  />
-                </div>
+            <div className="h-[calc(100%-49px)] overflow-auto p-3 bg-slate-50">
+              {participants.length === 0 ? (
+                <div className="text-sm text-slate-500">No participants returned for this meeting.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {participants.map((p) => {
+                    const email = (p.email || "").toLowerCase();
+                    const photo = photoUrlByEmail[email];
 
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{p.name || "(no name)"}</div>
-                  <div className="text-xs text-slate-500 truncate">{p.email}</div>
-                  <div className="text-xs text-slate-600 mt-1">
-                    {p.role}
-                    {p.response ? ` • ${p.response}` : ""}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  </div>
-</div>
+                    return (
+                      <li
+                        key={`${email}-${p.role}`}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 flex items-center gap-3"
+                      >
+                        <div className="relative shrink-0">
+                          {photo ? (
+                            <img
+                              src={photo}
+                              alt={p.name || p.email}
+                              className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
+                              {initials(p.name || p.email)}
+                            </div>
+                          )}
 
+                          <span
+                            className={[
+                              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white",
+                              statusDotClass(p.response),
+                            ].join(" ")}
+                            title={p.response || "no response"}
+                          />
+                        </div>
 
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{p.name || "(no name)"}</div>
+                          <div className="text-xs text-slate-500 truncate">{p.email}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            {p.role}
+                            {p.response ? ` • ${p.response}` : ""}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
