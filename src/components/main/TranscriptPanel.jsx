@@ -1,3 +1,4 @@
+//src/components/main/TranscriptPanel.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
@@ -332,16 +333,23 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
 
   const headerTitle = (
     <div className="flex items-center justify-between gap-3 w-full">
-      <div className="flex items-center gap-3">
-        {isCompleted ? (
-          <SegmentedToggle value={tab} onChange={setTab} />
-        ) : (
-          <div className="text-sm font-semibold text-slate-900">{isUpcoming ? "Meeting Details" : "Details"}</div>
-        )}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="min-w-0">
+          <div className="font-semibold text-slate-900 truncate">
+            {selected?.title || "Select a meeting"}
+          </div>
+          <div className="text-xs text-slate-500 line-clamp-2">
+            {selected?.when || ""}
+          </div>
+        </div>
       </div>
 
+       <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
+      {isCompleted && (<SegmentedToggle value={tab} onChange={setTab} />)}
+      
       {/* Only below lg */}
       <div className="flex items-center gap-2 lg:hidden">
+       
         <ParticipantsGroup participants={participants} />
         <button
           onClick={onOpenParticipants}
@@ -352,6 +360,7 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
           <ParticipantsIcon />
         </button>
       </div>
+      </div>
     </div>
   );
 
@@ -360,15 +369,7 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
       className="h-full w-full"
       bodyClassName="min-h-0"
       title={headerTitle}
-      subtitle={
-        isUpcoming
-          ? "Details for the selected upcoming meeting."
-          : isCompleted
-          ? tab === "transcript"
-            ? "Transcript for the selected meeting."
-            : "AI summary of this meeting."
-          : "Details for the selected meeting."
-      }
+    
     >
       {/* Upcoming = Meeting Details */}
       {isUpcoming ? (

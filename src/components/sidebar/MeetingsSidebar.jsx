@@ -1,3 +1,4 @@
+//src/components/sidebar/MeetingsSidebar.jsx
 import React, { useMemo } from "react";
 import TabButton from "./TabButton";
 import MeetingRow from "./MeetingRow";
