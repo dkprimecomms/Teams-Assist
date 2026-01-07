@@ -1,3 +1,4 @@
+//src/components/sidebar/MeetingRow.jsx
 import React from "react";
 
 function hoverBg(status) {

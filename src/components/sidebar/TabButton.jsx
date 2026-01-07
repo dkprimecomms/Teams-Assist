@@ -1,3 +1,4 @@
+//src/components/sidebar/TabButton.jsx
 import React from "react";
 
 export default function TabButton({ active, children, onClick }) {
