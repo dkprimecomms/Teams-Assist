@@ -1,19 +1,19 @@
-// src/api/summarizeApi.js
+// src/api/summaryApi.js
 import { getTeamsToken } from "./authApi";
 import { postJson } from "./http";
 
-export async function summarizeTranscript({ title, transcriptVtt }) {
+export async function fetchSummaryForMeeting(meeting) {
   const token = await getTeamsToken();
 
   const { res, data } = await postJson("/summarize", {
     token,
-    title,
-    transcriptVtt,  
+    title: meeting?.title || "",
+    joinWebUrl: meeting?.joinWebUrl || "",
   });
 
   if (!res.ok || !data?.ok) {
     throw new Error(data?.error || data?.detail || `Summarize failed (${res.status})`);
   }
 
-  return data.summary; // { purpose, takeaways, detailedSummary, actionItems }
+  return data.summary;
 }

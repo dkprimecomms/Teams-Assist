@@ -12,11 +12,11 @@ export default function MainLayout({ selected, meEmail, onOpenSidebar, onFetchSu
             selected={selected}
             meEmail={meEmail}
             onOpenSidebar={onOpenSidebar}
-            onFetchSummary={onFetchSummary}
+            onFetchSummary={onFetchSummary} // ✅
           />
         </div>
 
-        <div className="min-h-0 hidden xl:flex flex-1 h-full">
+        <div className="min-h-0 hidden lg:flex flex-1 h-full">
           <RightRail selected={selected} />
         </div>
       </div>

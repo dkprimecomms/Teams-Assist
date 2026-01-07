@@ -6,15 +6,13 @@ import MainLayout from "./components/main/MainLayout";
 import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
-import { mockSummaryByMeetingId } from "./mocks/mockData";
 
-
-// ✅ for whoami
+// whoami
 import { getTeamsToken } from "./api/authApi";
 import { postJson } from "./api/http";
 
-// ✅ summarize
-import { summarizeTranscript } from "./api/summarizeApi";
+// ✅ summary
+import { fetchSummaryForMeeting } from "./api/summaryApi";
 
 export default function App() {
   const [statusTab, setStatusTab] = useState("upcoming");
@@ -32,16 +30,12 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  // ✅ signed-in user email
   const [meEmail, setMeEmail] = useState("");
-
-  // ✅ Sidebar drawer (tablet/mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ✅ Store summaries by meeting id
+  // ✅ summary cache: { [meetingId]: summaryObj }
   const [summaryByMeetingId, setSummaryByMeetingId] = useState({});
 
-  // ✅ whoami once
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -51,9 +45,7 @@ export default function App() {
         if (!cancelled && res.ok && data?.ok && data?.upn) {
           setMeEmail(String(data.upn).toLowerCase());
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     })();
     return () => {
       cancelled = true;
@@ -74,6 +66,7 @@ export default function App() {
           ...m,
           participants: [],
           transcript: "",
+          summary: m.summary || "",
           joinWebUrl: m.joinWebUrl || "",
           startUTC: m.startUTC || null,
           endUTC: m.endUTC || null,
@@ -135,7 +128,7 @@ export default function App() {
     };
   }, [selectedMeetingId]);
 
-  // 4) Load transcript for completed meetings
+  // 4) Load transcript ONLY for completed meetings with joinWebUrl
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -184,57 +177,40 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 5) selected meeting raw object
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // ✅ Summarize fetcher (called from TranscriptPanel)
-  async function fetchSummaryForMeeting(meeting) {
-    if (!meeting?.id) throw new Error("Missing meeting");
-    if (summaryByMeetingId[meeting.id]) return summaryByMeetingId[meeting.id];
+  // ✅ onFetchSummary called by TranscriptPanel
+  async function onFetchSummary(meeting) {
+    if (!meeting?.id) return;
 
-    // ✅ Use the transcript currently loaded in App
-    const transcriptVtt = transcriptText || "";
-    if (!transcriptVtt) throw new Error("Transcript is empty");
+    // Already cached
+    if (summaryByMeetingId[meeting.id]) return;
 
-    const summary = await summarizeTranscript({
-      title: meeting.title || "Meeting",
-      transcriptVtt,
-    });
+    // Mock mode: do nothing (your mock summary may already be present)
+    const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
+    if (USE_MOCKS) return;
 
-    setSummaryByMeetingId((prev) => ({ ...prev, [meeting.id]: summary }));
-    return summary;
+    const summaryObj = await fetchSummaryForMeeting(meeting);
+    setSummaryByMeetingId((prev) => ({ ...prev, [meeting.id]: summaryObj }));
   }
 
-  // 6) merge selected data
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
-    const mergedTranscript =
-      transcriptLoading
-        ? "Loading transcript…"
-        : transcriptError
-        ? `Transcript load failed: ${transcriptError}`
-        : transcriptText || "";
-
-    const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
     return {
       ...selectedRaw,
       participants: participants || [],
-      transcript: mergedTranscript,
-      summaryObj: USE_MOCKS
-      ? mockSummaryByMeetingId[selectedRaw.id] || null
-      : summaryByMeetingId[selectedRaw.id] || null,    };
-  }, [
-    selectedRaw,
-    participants,
-    transcriptText,
-    transcriptLoading,
-    transcriptError,
-    summaryByMeetingId,
-  ]);
+      transcript: transcriptLoading
+        ? "Loading transcript…"
+        : transcriptError
+        ? `Transcript load failed: ${transcriptError}`
+        : transcriptText || "",
+      summaryObj: summaryByMeetingId[selectedRaw.id] || null, // ✅ attach cached summary
+    };
+  }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError, summaryByMeetingId]);
 
   return (
     <div className="h-[100dvh] w-full bg-slate-50 overflow-hidden">
@@ -327,7 +303,7 @@ export default function App() {
             selected={selected}
             meEmail={meEmail}
             onOpenSidebar={() => setSidebarOpen(true)}
-            onFetchSummary={fetchSummaryForMeeting}
+            onFetchSummary={onFetchSummary} // ✅ pass down
           />
 
           {participantsLoading && (
@@ -335,6 +311,7 @@ export default function App() {
               Loading participants...
             </div>
           )}
+
           {participantsError && (
             <div className="absolute top-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
               {participantsError}
