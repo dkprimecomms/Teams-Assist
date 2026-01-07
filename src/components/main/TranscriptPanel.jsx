@@ -1,8 +1,8 @@
-//src/components/main/TranscriptPanel.jsx
+// src/components/main/TranscriptPanel.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
-import ParticipantsIcon from "../icons/ParticipantsIcon";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
+import ParticipantsIcon from "../icons/ParticipantsIcon";
 
 function SummarizeIcon({ className = "" }) {
   return (
@@ -11,6 +11,16 @@ function SummarizeIcon({ className = "" }) {
       <path d="M4 12h10" />
       <path d="M4 18h16" />
       <path d="M16 10l4 2-4 2z" />
+    </svg>
+  );
+}
+
+function MenuIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
     </svg>
   );
 }
@@ -24,89 +34,145 @@ function initials(nameOrEmail) {
   return (a + b).toUpperCase();
 }
 
-/**
- * Very simple VTT transcript parser.
- * Expected lines like:
- * 00:00:00.000 --> 00:00:05.000
- * Organizer: Hello
- *
- * We extract "Speaker: text"
- */
+function decodeHtml(s) {
+  return String(s || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+function stripTags(s) {
+  return String(s || "").replace(/<\/?[^>]+>/g, "").trim();
+}
+
+// "00:01:23.201" -> "01:23"
+function formatVttTimestamp(hmsMs) {
+  const s = String(hmsMs || "").trim();
+  const m = s.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+  if (!m) return "";
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ss = Number(m[3]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return "";
+  const totalMinutes = hh * 60 + mm;
+  const mm2 = String(totalMinutes).padStart(2, "0");
+  const ss2 = String(ss).padStart(2, "0");
+  return `${mm2}:${ss2}`;
+}
+
 function parseVttToMessages(vtt) {
-  const text = String(vtt || "");
-  if (!text.trim()) return [];
+  const raw = String(vtt || "");
+  if (!raw.trim()) return [];
 
-  // remove WEBVTT header
-  const cleaned = text.replace(/^WEBVTT.*\n+/i, "");
+  const normalized = raw.replace(/\r\n/g, "\n");
+  const cleaned = normalized.replace(/^WEBVTT[^\n]*\n+/i, "");
+  const lines = cleaned.split("\n");
 
-  const lines = cleaned.split("\n").map((l) => l.trim());
   const messages = [];
+  let lastSpeaker = null;
+  let currentCueTime = "";
 
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
 
-    // time range line
     if (line.includes("-->")) {
-      i += 1;
-
-      // collect text lines until blank
-      const chunk = [];
-      while (i < lines.length && lines[i] !== "") {
-        chunk.push(lines[i]);
-        i += 1;
-      }
-
-      // chunk can include multiple speaker lines
-      for (const raw of chunk) {
-        // "Name: message"
-        const m = raw.match(/^([^:]{1,60}):\s*(.+)$/);
-        if (m) {
-          messages.push({
-            speaker: m[1].trim(),
-            text: m[2].trim(),
-          });
-        } else if (raw) {
-          // if no speaker label, append to previous message if possible
-          const last = messages[messages.length - 1];
-          if (last) last.text = `${last.text}\n${raw}`;
-          else messages.push({ speaker: "Unknown", text: raw });
-        }
-      }
-    } else {
-      i += 1;
+      const parts = line.split("-->");
+      const startRaw = (parts[0] || "").trim();
+      const startMatch = startRaw.match(/^(\d{2}:\d{2}:\d{2})(?:\.\d+)?$/);
+      currentCueTime = startMatch ? formatVttTimestamp(startMatch[1]) : "";
+      continue;
     }
+
+    const vMatch = line.match(/^<v\s*([^>]*)>([\s\S]*?)<\/v>$/i);
+    if (vMatch) {
+      const rawSpeaker = decodeHtml(vMatch[1] || "").trim();
+      const rawText = decodeHtml(vMatch[2] || "").trim();
+
+      const speaker = rawSpeaker || lastSpeaker || "Unknown";
+      const msgText = stripTags(rawText);
+
+      if (msgText) {
+        messages.push({ speaker, text: msgText, time: currentCueTime || "" });
+        lastSpeaker = speaker;
+      }
+      continue;
+    }
+
+    const colonMatch = line.match(/^([^:]{1,80}):\s*(.+)$/);
+    if (colonMatch) {
+      const speaker = colonMatch[1].trim() || "Unknown";
+      const msgText = colonMatch[2].trim();
+      messages.push({ speaker, text: msgText, time: currentCueTime || "" });
+      lastSpeaker = speaker;
+      continue;
+    }
+
+    const plain = stripTags(decodeHtml(line));
+    if (!plain) continue;
+
+    const last = messages[messages.length - 1];
+    if (last) last.text = `${last.text}\n${plain}`;
+    else messages.push({ speaker: "Unknown", text: plain, time: currentCueTime || "" });
   }
 
-  // merge consecutive messages from same speaker (chat-style)
   const merged = [];
-  for (const msg of messages) {
+  for (const m of messages) {
     const prev = merged[merged.length - 1];
-    if (prev && prev.speaker === msg.speaker) {
-      prev.text = `${prev.text}\n${msg.text}`;
-    } else {
-      merged.push({ ...msg });
-    }
+    if (prev && prev.speaker === m.speaker) prev.text = `${prev.text}\n${m.text}`;
+    else merged.push({ ...m });
   }
 
   return merged;
 }
 
-// ✅ Animated toggle (blue pill)
+function findParticipantForSpeaker(speaker, participants) {
+  const s = String(speaker || "").trim().toLowerCase();
+  if (!s) return null;
+
+  let p = (participants || []).find((x) => String(x.name || "").trim().toLowerCase() === s);
+  if (p) return p;
+
+  p = (participants || []).find((x) => String(x.name || "").toLowerCase().includes(s));
+  if (p) return p;
+
+  p = (participants || []).find((x) => s.includes(String(x.name || "").toLowerCase()));
+  return p || null;
+}
+
+function isMineMessage(msg, participants, meEmail) {
+  const me = String(meEmail || "").toLowerCase();
+  if (!me) return false;
+
+  const p = findParticipantForSpeaker(msg.speaker, participants);
+  if (!p?.email) return false;
+
+  return String(p.email).toLowerCase() === me;
+}
+
+function statusDotClass(response) {
+  const r = (response || "").toLowerCase();
+  if (r === "accepted") return "bg-emerald-500";
+  if (r === "declined") return "bg-rose-500";
+  if (r === "tentativelyaccepted") return "bg-amber-500";
+  return "bg-slate-300";
+}
+
+// ✅ Smaller on mobile (md+ normal)
 function SegmentedToggle({ value, onChange }) {
   const isTranscript = value === "transcript";
 
   return (
-    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+    <div className={["relative inline-flex rounded-xl border border-slate-200 bg-slate-50", "p-0.5 md:p-1"].join(" ")}>
       <span
-        className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out"
+        className={[
+          "absolute top-0.5 bottom-0.5 rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out",
+          "w-[calc(50%-2px)] md:w-[calc(50%-4px)]",
+        ].join(" ")}
         style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
       />
       <button
         type="button"
         onClick={() => onChange("transcript")}
         className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          "relative z-10 rounded-lg font-semibold transition-colors duration-200",
+          "text-xs px-2 py-1 md:text-sm md:px-3 md:py-1.5",
           isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
         ].join(" ")}
       >
@@ -116,7 +182,8 @@ function SegmentedToggle({ value, onChange }) {
         type="button"
         onClick={() => onChange("summary")}
         className={[
-          "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
+          "relative z-10 rounded-lg font-semibold transition-colors duration-200",
+          "text-xs px-2 py-1 md:text-sm md:px-3 md:py-1.5",
           !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
         ].join(" ")}
       >
@@ -126,346 +193,352 @@ function SegmentedToggle({ value, onChange }) {
   );
 }
 
-function ParticipantsGroup({ participants = [] }) {
-  const items = participants.slice(0, 6);
-  const extra = participants.length - items.length;
-  if (!participants.length) return null;
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex -space-x-2">
-        {items.map((p) => (
-          <div
-            key={(p.email || p.name) + (p.role || "")}
-            className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-700"
-            title={p.name || p.email}
-          >
-            {initials(p.name || p.email)}
-          </div>
-        ))}
-      </div>
-      {extra > 0 && <span className="text-xs text-slate-600">+{extra}</span>}
-    </div>
-  );
-}
-
-function stripHtml(s) {
-  return String(s || "").replace(/<[^>]*>/g, "");
-}
-
-function MeetingDetails({ selected }) {
-  const raw = selected?.raw || {};
-  const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
-  const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
-  const joinUrl = selected?.joinWebUrl || raw?.onlineMeeting?.joinUrl || "";
-  const location =
-    selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
-  const description = selected?.bodyPreview || raw?.bodyPreview || "";
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-base font-semibold text-slate-900 truncate">
-            {selected?.title || raw?.subject || "(no subject)"}
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5 truncate">{selected?.when || ""}</div>
-        </div>
-
-        {joinUrl ? (
-          <a
-            href={joinUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={[
-              "shrink-0 inline-flex items-center justify-center",
-              "h-9 px-4 rounded-xl text-sm font-semibold",
-              "text-white bg-[#6264A7] hover:bg-[#5557A0]",
-              "focus:outline-none focus:ring-2 focus:ring-[#6264A7]/40",
-              "active:translate-y-[1px]",
-            ].join(" ")}
-            title="Join in Teams"
-          >
-            Join in Teams
-          </a>
-        ) : (
-          <button
-            disabled
-            className="shrink-0 h-9 px-4 rounded-xl text-sm font-semibold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-          >
-            Join in Teams
-          </button>
-        )}
-      </div>
-
-      <div className="p-4">
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
-          <div className="text-xs font-semibold text-slate-500">Organizer</div>
-          <div className="text-sm text-slate-900 break-words">
-            {organizerName || "(unknown)"}{" "}
-            {organizerEmail ? <span className="text-slate-500">• {organizerEmail}</span> : null}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
-          <div className="text-xs font-semibold text-slate-500">Status</div>
-          <div>
-            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
-              {selected?.status || "upcoming"}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
-          <div className="text-xs font-semibold text-slate-500">Provider</div>
-          <div className="text-sm text-slate-900 break-words">
-            {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
-          <div className="text-xs font-semibold text-slate-500">Location</div>
-          <div className="text-sm text-slate-900 break-words">{location || "(none)"}</div>
-        </div>
-
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2">
-          <div className="text-xs font-semibold text-slate-500">Description</div>
-          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words">
-            {description ? stripHtml(description).trim() : "(no description)"}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function TranscriptPanel({ selected, participants = [], onOpenParticipants }) {
+export default function TranscriptPanel({ selected, meEmail, onOpenSidebar, onFetchSummary }) {
   const [tab, setTab] = useState("transcript");
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+
+  useEffect(() => {
+    setTab("transcript");
+    setParticipantsOpen(false);
+    setSummaryError("");
+    setSummaryLoading(false);
+  }, [selected?.id]);
+
+  const isCompleted = selected?.status === "completed";
+  const transcriptText = selected?.transcript || "";
+  const participants = selected?.participants || [];
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const photoUrlByEmail = useParticipantPhotos(participants, API_BASE_URL);
 
-  useEffect(() => {
-    setTab("transcript");
-  }, [selected?.id]);
-
-  const isCompleted = selected?.status === "completed";
-  const isUpcoming = selected?.status === "upcoming";
-
-  const transcriptText = selected?.transcript || "";
-  const summaryText = selected?.summary || "No summary yet.";
-
-  const canSummarize = useMemo(
-    () => isCompleted && transcriptText.trim().length > 0,
-    [isCompleted, transcriptText]
-  );
-
-  // Who is "me"? (best-effort)
-  const myEmail = useMemo(() => {
-    const org = selected?.organizer?.email;
-    if (org) return String(org).toLowerCase();
-    const organizer = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
-    if (organizer?.email) return String(organizer.email).toLowerCase();
-    return ""; // fallback later
-  }, [selected, participants]);
+  const canSummarize = useMemo(() => {
+    return (
+      isCompleted &&
+      transcriptText &&
+      !transcriptText.startsWith("Loading") &&
+      !transcriptText.startsWith("Transcript load failed")
+    );
+  }, [isCompleted, transcriptText]);
 
   const messages = useMemo(() => {
     if (!isCompleted) return [];
-    if (!transcriptText || transcriptText.startsWith("Loading")) return [];
-    if (transcriptText.startsWith("Transcript load failed")) return [];
+    if (!transcriptText || transcriptText.startsWith("Loading") || transcriptText.startsWith("Transcript load failed"))
+      return [];
     return parseVttToMessages(transcriptText);
   }, [isCompleted, transcriptText]);
 
-  // map speaker -> participant object (best-effort)
-  function findParticipantForSpeaker(speaker) {
-    const s = String(speaker || "").toLowerCase();
-
-    // match by name contains
-    const byName = (participants || []).find((p) => (p.name || "").toLowerCase().includes(s));
-    if (byName) return byName;
-
-    // match exact organizer label "Organizer"
-    if (s === "organizer") {
-      const org = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
-      if (org) return org;
-    }
-
-    return null;
-  }
-
-  function isMine(msg) {
-    // If we know my email, compare against matched participant email
-    const p = findParticipantForSpeaker(msg.speaker);
-    if (myEmail && p?.email) return String(p.email).toLowerCase() === myEmail;
-
-    // fallback: if speaker literally contains your name/email fragment
-    if (myEmail && msg.speaker && String(msg.speaker).toLowerCase().includes(myEmail.split("@")[0])) return true;
-
-    // last resort: treat "Dheepan" as mine if it exists in participants organizer (from mocks)
-    const org = (participants || []).find((x) => String(x.role).toLowerCase() === "organizer");
-    if (org?.name && msg.speaker) {
-      const a = org.name.toLowerCase().split(/\s+/)[0];
-      if (a && msg.speaker.toLowerCase().includes(a)) return true;
-    }
-
-    return false;
-  }
-
-  function avatarForParticipant(p, fallbackLabel) {
-    const email = (p?.email || "").toLowerCase();
+  function avatarNode(participant, fallback) {
+    const email = (participant?.email || "").toLowerCase();
     const photo = email ? photoUrlByEmail[email] : null;
 
     if (photo) {
-      return <img src={photo} alt={p?.name || p?.email} className="h-8 w-8 rounded-full object-cover border border-slate-200" />;
+      return (
+        <img
+          src={photo}
+          alt={participant?.name || participant?.email || "avatar"}
+          className="h-8 w-8 rounded-full object-cover border border-slate-200"
+        />
+      );
     }
 
     return (
       <div className="h-8 w-8 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-700">
-        {initials(p?.name || p?.email || fallbackLabel)}
+        {initials(participant?.name || participant?.email || fallback)}
       </div>
     );
   }
 
-  function onSummarizeClick() {
+  async function ensureSummary() {
+    if (String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true") {
+  return; // mock summary already available
+}
+    if (!selected || !isCompleted) return;
     if (!canSummarize) return;
-    setTab("summary"); // ✅ auto toggle
+    if (selected.summaryObj) return;
+
+    setSummaryError("");
+    setSummaryLoading(true);
+    try {
+      await onFetchSummary?.(selected);
+    } catch (e) {
+      setSummaryError(String(e?.message || e));
+    } finally {
+      setSummaryLoading(false);
+    }
   }
 
-  const headerTitle = (
-    <div className="flex items-center justify-between gap-3 w-full">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="min-w-0">
-          <div className="font-semibold text-slate-900 truncate">
-            {selected?.title || "Select a meeting"}
-          </div>
-          <div className="text-xs text-slate-500 line-clamp-2">
-            {selected?.when || ""}
-          </div>
-        </div>
-      </div>
+  async function onSummarizeClick() {
+    if (!canSummarize) return;
+    setTab("summary");
+    await ensureSummary();
+  }
 
-       <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
-      {isCompleted && (<SegmentedToggle value={tab} onChange={setTab} />)}
-      
-      {/* Only below lg */}
-      <div className="flex items-center gap-2 lg:hidden">
-       
-        <ParticipantsGroup participants={participants} />
-        <button
-          onClick={onOpenParticipants}
-          className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
-          title="Participants"
-          type="button"
-        >
-          <ParticipantsIcon />
-        </button>
-      </div>
-      </div>
-    </div>
-  );
+  const summaryObj = selected?.summaryObj || null;
 
   return (
     <Card
       className="h-full w-full"
       bodyClassName="min-h-0"
-      title={headerTitle}
-    
-    >
-      {/* Upcoming = Meeting Details */}
-      {isUpcoming ? (
-        <div className="h-full min-h-0 overflow-auto pr-1">
-          <MeetingDetails selected={selected} />
-        </div>
-      ) : (
-        <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
-          {/* Content */}
-          <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
-            {!selected ? (
-              <div className="text-sm text-slate-600">Select a meeting.</div>
-            ) : !isCompleted ? (
-              <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
-            ) : tab === "summary" ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 whitespace-pre-wrap break-words">
-                {summaryText}
+      title={
+        selected ? (
+          <div className="flex items-start justify-between gap-3 w-full">
+            <div className="flex items-start gap-2 min-w-0">
+              {/* ✅ Meetings drawer button */}
+              <button
+                type="button"
+                onClick={onOpenSidebar}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Meetings"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+
+              {/* ✅ Tablet grouped icon (Participants only). Mobile shows same button, that’s fine. */}
+              <button
+                type="button"
+                onClick={() => setParticipantsOpen(true)}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Participants"
+              >
+                <ParticipantsIcon />
+              </button>
+
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900 truncate">
+                  {selected.title || "(no subject)"}
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500 truncate">{selected.when || ""}</div>
               </div>
-            ) : transcriptText.startsWith("Loading") ? (
-              <div className="text-sm text-slate-600">{transcriptText}</div>
-            ) : transcriptText.startsWith("Transcript load failed") ? (
-              <div className="text-sm text-rose-700">{transcriptText}</div>
-            ) : messages.length === 0 ? (
-              <div className="text-sm text-slate-600">No transcript loaded.</div>
-            ) : (
-              <div className="space-y-3">
-                {messages.map((msg, idx) => {
-                  const mine = isMine(msg);
-                  const p = findParticipantForSpeaker(msg.speaker);
+            </div>
 
-                  return (
-                    <div
-                      key={`${idx}-${msg.speaker}`}
-                      className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
-                    >
-                      {/* Left avatar */}
-                      {!mine && (
-                        <div className="shrink-0">
-                          {avatarForParticipant(p, msg.speaker)}
-                        </div>
-                      )}
-
-                      {/* Bubble */}
-                      <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
-                        <div
-                          className={[
-                            "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
-                            mine
-                              ? "bg-[#00A4EF] text-white border-[#00A4EF]"
-                              : "bg-white text-slate-900 border-slate-200",
-                          ].join(" ")}
-                        >
-                          {/* Speaker label for others */}
-                          {!mine && (
-                            <div className="text-[11px] font-semibold text-slate-500 mb-1">
-                              {msg.speaker}
-                            </div>
-                          )}
-                          <div className="whitespace-pre-wrap break-words">{msg.text}</div>
-                        </div>
-                      </div>
-
-                      {/* Right avatar */}
-                      {mine && (
-                        <div className="shrink-0">
-                          {avatarForParticipant(p, "Me")}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {isCompleted ? (
+              <SegmentedToggle
+                value={tab}
+                onChange={async (next) => {
+                  setTab(next);
+                  if (next === "summary") await ensureSummary();
+                }}
+              />
+            ) : null}
           </div>
+        ) : (
+          <div className="w-full flex items-center justify-between">
+            <span>Meeting Details</span>
+          </div>
+        )
+      }
+    >
+      <div className="relative rounded-xl bg-white h-full min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto p-3 bg-white">
+          {!selected ? (
+            <div className="text-sm text-slate-600">Select a meeting.</div>
+          ) : !isCompleted ? (
+            <div className="text-sm text-slate-600">No transcript for upcoming/skipped meetings.</div>
+          ) : tab === "summary" ? (
+  <>
+    {summaryLoading ? (
+      <div className="text-sm text-slate-600">Generating summary…</div>
+    ) : summaryError ? (
+      <div className="text-sm text-rose-700">Summary failed: {summaryError}</div>
+    ) : summaryObj ? (
+      <div className="space-y-4">
+        <div >
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-1">Purpose</div>
+          <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.purpose || "—"}</div>
+        </div>
 
-          {/* Summarize floating button only on transcript tab */}
-          {isCompleted && tab === "transcript" && (
-            <button
-              onClick={onSummarizeClick}
-              disabled={!canSummarize}
-              title={canSummarize ? "Summarize (switch to Summary)" : "Load a transcript first"}
-              className={[
-                "absolute bottom-3 right-3 rounded-full border shadow-sm",
-                "h-11 w-11 flex items-center justify-center",
-                "transition active:translate-y-[1px]",
-                canSummarize
-                  ? "bg-white border-slate-300 text-slate-900 hover:bg-slate-100"
-                  : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
-              ].join(" ")}
-              type="button"
-            >
-              <SummarizeIcon className="h-5 w-5" />
-            </button>
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Takeaways</div>
+          {summaryObj.takeaways?.length ? (
+            <ul className="list-disc pl-5 text-sm text-slate-900 space-y-1">
+              {summaryObj.takeaways.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-sm text-slate-600">—</div>
           )}
         </div>
-      )}
+
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Detailed summary</div>
+          <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.detailedSummary || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Action items</div>
+          {summaryObj.actionItems?.length ? (
+            <div className="space-y-2">
+              {summaryObj.actionItems.map((a, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-sm text-slate-900 font-medium">{a.task || "—"}</div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    Owner: {a.owner ?? "—"} <span className="text-slate-300">•</span> Due: {a.dueDate ?? "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-600">No follow-up tasks found.</div>
+          )}
+        </div>
+      </div>
+    ) : (
+      <div className="text-sm text-slate-600">No summary yet. Click Summary to generate.</div>
+    )}
+  </>
+) : transcriptText.startsWith("Loading") ? (
+
+            <div className="text-sm text-slate-600">{transcriptText}</div>
+          ) : transcriptText.startsWith("Transcript load failed") ? (
+            <div className="text-sm text-rose-700">{transcriptText}</div>
+          ) : messages.length === 0 ? (
+            <div className="text-sm text-slate-600">No transcript loaded.</div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((msg, idx) => {
+                const mine = isMineMessage(msg, participants, meEmail);
+                const p = findParticipantForSpeaker(msg.speaker, participants);
+
+                return (
+                  <div
+                    key={`${idx}-${msg.speaker}`}
+                    className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
+                  >
+                    {!mine && <div className="shrink-0">{avatarNode(p, msg.speaker)}</div>}
+
+                    <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
+                      <div
+                        className={[
+                          "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
+                          mine ? "bg-[#00A4EF] text-white border-[#00A4EF]" : "bg-slate-50 text-slate-900 border-slate-200",
+                        ].join(" ")}
+                      >
+                        {!mine && <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>}
+                        <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                        {msg.time ? (
+                          <div className={["mt-1 text-[11px]", mine ? "text-white/80" : "text-slate-400"].join(" ")}>
+                            {msg.time}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {mine && <div className="shrink-0">{avatarNode(p, "Me")}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {isCompleted && tab === "transcript" && (
+          <button
+            onClick={onSummarizeClick}
+            disabled={!canSummarize}
+            title={canSummarize ? "Summarize (switch to Summary)" : "Load a transcript first"}
+            className={[
+              "absolute bottom-3 right-3 rounded-full border shadow-sm",
+              "h-11 w-11 flex items-center justify-center",
+              "transition active:translate-y-[1px]",
+              canSummarize
+                ? "bg-white border-slate-300 text-slate-900 hover:bg-slate-100"
+                : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
+            ].join(" ")}
+            type="button"
+          >
+            <SummarizeIcon className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* ✅ Participants bottom-sheet (tablet/mobile) */}
+        <div className="xl:hidden">
+          <div
+            className={[
+              "absolute inset-0 z-20 bg-black/30 transition-opacity",
+              participantsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+            ].join(" ")}
+            onClick={() => setParticipantsOpen(false)}
+          />
+
+          <div
+            className={[
+              "absolute left-0 right-0 bottom-0 z-30",
+              "bg-white border-t border-slate-200",
+              "rounded-t-2xl shadow-xl",
+              "transition-transform duration-300 ease-out",
+              participantsOpen ? "translate-y-0" : "translate-y-full",
+            ].join(" ")}
+            style={{ height: "45%" }}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Participants</div>
+              <button
+                type="button"
+                onClick={() => setParticipantsOpen(false)}
+                className="text-sm text-slate-600 hover:text-slate-900"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="h-[calc(100%-49px)] overflow-auto p-3 bg-slate-50">
+              {participants.length === 0 ? (
+                <div className="text-sm text-slate-500">No participants returned for this meeting.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {participants.map((p) => {
+                    const email = (p.email || "").toLowerCase();
+                    const photo = photoUrlByEmail[email];
+
+                    return (
+                      <li
+                        key={`${email}-${p.role}`}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 flex items-center gap-3"
+                      >
+                        <div className="relative shrink-0">
+                          {photo ? (
+                            <img
+                              src={photo}
+                              alt={p.name || p.email}
+                              className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
+                              {initials(p.name || p.email)}
+                            </div>
+                          )}
+
+                          <span
+                            className={[
+                              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white",
+                              statusDotClass(p.response),
+                            ].join(" ")}
+                            title={p.response || "no response"}
+                          />
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{p.name || "(no name)"}</div>
+                          <div className="text-xs text-slate-500 truncate">{p.email}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            {p.role}
+                            {p.response ? ` • ${p.response}` : ""}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
