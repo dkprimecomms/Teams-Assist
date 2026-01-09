@@ -152,7 +152,7 @@ function ParticipantsGroup({ participants = [] }) {
 function stripHtml(s) {
   return String(s || "").replace(/<[^>]*>/g, "");
 }
-
+//
 function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
