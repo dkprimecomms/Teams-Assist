@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
+import { fetchSummaryForMeeting } from "../../api/summaryApi";
 
 function SummarizeIcon({ className = "" }) {
   return (
@@ -109,7 +110,6 @@ function parseVttToMessages(vtt) {
         }
       }
 
-      // speaker line + body line(s)
       if (!parsedAny) {
         if (chunk.length >= 2) {
           const possibleSpeaker = stripTags(chunk[0]);
@@ -129,7 +129,6 @@ function parseVttToMessages(vtt) {
     i += 1;
   }
 
-  // merge consecutive messages from same speaker
   const merged = [];
   for (const msg of messages) {
     if (!msg.text) continue;
@@ -141,7 +140,8 @@ function parseVttToMessages(vtt) {
   return merged;
 }
 
-function SegmentedToggle({ value, onChange }) {
+// ✅ Animated toggle (blue pill)
+function SegmentedToggle({ value, onChange, disabledSummary }) {
   const isTranscript = value === "transcript";
 
   return (
@@ -162,11 +162,13 @@ function SegmentedToggle({ value, onChange }) {
       </button>
       <button
         type="button"
-        onClick={() => onChange("summary")}
+        onClick={() => !disabledSummary && onChange("summary")}
         className={[
           "relative z-10 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-200",
           !isTranscript ? "text-white" : "text-slate-600 hover:text-slate-900",
+          disabledSummary ? "opacity-50 cursor-not-allowed" : "",
         ].join(" ")}
+        title={disabledSummary ? "Load transcript first" : "Summary"}
       >
         Summary
       </button>
@@ -297,6 +299,59 @@ function MeetingDetails({ selected }) {
   );
 }
 
+function SummaryView({ summaryLoading, summaryError, summaryValue }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
+      {summaryLoading ? (
+        <div className="text-slate-600">Summarizing…</div>
+      ) : summaryError ? (
+        <div className="text-rose-700">Summary failed: {summaryError}</div>
+      ) : summaryValue ? (
+        <div className="space-y-4">
+          <div>
+            <div className="text-xs font-semibold text-slate-500">Purpose</div>
+            <div className="mt-1 whitespace-pre-wrap">{summaryValue.purpose}</div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-slate-500">Key takeaways</div>
+            <ul className="mt-1 list-disc pl-5 space-y-1">
+              {(summaryValue.takeaways || []).map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-slate-500">Detailed summary</div>
+            <div className="mt-1 whitespace-pre-wrap">{summaryValue.detailedSummary}</div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-slate-500">Action items</div>
+            {(summaryValue.actionItems || []).length ? (
+              <ul className="mt-1 space-y-2">
+                {summaryValue.actionItems.map((a, i) => (
+                  <li key={i} className="rounded-lg border border-slate-200 p-2">
+                    <div className="font-medium">{a.task}</div>
+                    <div className="text-xs text-slate-600">
+                      Owner: {a.owner || "—"} • Due: {a.dueDate || "—"}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-1 text-slate-600">No action items found.</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="text-slate-600">Click summarize to generate a summary.</div>
+      )}
+    </div>
+  );
+}
+
 export default function TranscriptPanel({
   selected,
   participants = [],
@@ -306,6 +361,11 @@ export default function TranscriptPanel({
 }) {
   const [tab, setTab] = useState("transcript");
 
+  // summary state
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  const [summaryValue, setSummaryValue] = useState(null);
+
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const photoUrlByEmail = useParticipantPhotos(participants, API_BASE_URL);
 
@@ -313,14 +373,23 @@ export default function TranscriptPanel({
     setTab("transcript");
   }, [selected?.id]);
 
+  useEffect(() => {
+    setSummaryLoading(false);
+    setSummaryError("");
+    setSummaryValue(null);
+  }, [selected?.id]);
+
   const isCompleted = selected?.status === "completed";
   const isUpcoming = selected?.status === "upcoming";
 
   const transcriptText = selected?.transcript || "";
-  const summaryText = selected?.summary || "No summary yet.";
 
   const canSummarize = useMemo(
-    () => isCompleted && transcriptText.trim().length > 0,
+    () =>
+      isCompleted &&
+      transcriptText.trim().length > 0 &&
+      !transcriptText.startsWith("Loading") &&
+      !transcriptText.startsWith("Transcript load failed"),
     [isCompleted, transcriptText]
   );
 
@@ -383,15 +452,32 @@ export default function TranscriptPanel({
     );
   }
 
-  function onSummarizeClick() {
-    if (!canSummarize) return;
-    setTab("summary");
+  async function runSummarize() {
+    if (!canSummarize || !selected) return;
+
+    if (summaryValue) {
+      setTab("summary");
+      return;
+    }
+
+    setSummaryLoading(true);
+    setSummaryError("");
+
+    try {
+      const result = await fetchSummaryForMeeting(selected);
+      setSummaryValue(result);
+      setTab("summary");
+    } catch (e) {
+      setSummaryError(String(e?.message || e));
+      setTab("summary");
+    } finally {
+      setSummaryLoading(false);
+    }
   }
 
   const headerTitle = (
     <div className="flex items-center justify-between gap-3 w-full">
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* Sidebar button (mobile/tablet only) */}
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -408,9 +494,20 @@ export default function TranscriptPanel({
       </div>
 
       <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
-        {isCompleted && <SegmentedToggle value={tab} onChange={setTab} />}
+        {isCompleted && (
+          <SegmentedToggle
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              // If user switches to Summary tab manually, auto-generate
+              if (next === "summary" && !summaryValue && !summaryLoading) {
+                runSummarize();
+              }
+            }}
+            disabledSummary={!canSummarize}
+          />
+        )}
 
-        {/* Only below lg */}
         <div className="flex items-center gap-2 lg:hidden">
           <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
           <button
@@ -428,23 +525,19 @@ export default function TranscriptPanel({
 
   return (
     <Card className="h-full w-full" bodyClassName="min-h-0" title={headerTitle}>
-      {/* Upcoming = Meeting Details */}
       {isUpcoming ? (
         <div className="h-full min-h-0 overflow-auto pr-1">
           <MeetingDetails selected={selected} />
         </div>
       ) : (
         <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
-          {/* Content */}
           <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
             {!selected ? (
               <div className="text-sm text-slate-600">Select a meeting.</div>
             ) : !isCompleted ? (
               <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
             ) : tab === "summary" ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 whitespace-pre-wrap break-words">
-                {summaryText}
-              </div>
+              <SummaryView summaryLoading={summaryLoading} summaryError={summaryError} summaryValue={summaryValue} />
             ) : transcriptText.startsWith("Loading") ? (
               <div className="text-sm text-slate-600">{transcriptText}</div>
             ) : transcriptText.startsWith("Transcript load failed") ? (
@@ -488,17 +581,23 @@ export default function TranscriptPanel({
             )}
           </div>
 
-          {/* Summarize floating button only on transcript tab */}
+          {/* Floating summarize button only on transcript tab */}
           {isCompleted && tab === "transcript" && (
             <button
-              onClick={onSummarizeClick}
-              disabled={!canSummarize}
-              title={canSummarize ? "Summarize (switch to Summary)" : "Load a transcript first"}
+              onClick={runSummarize}
+              disabled={!canSummarize || summaryLoading}
+              title={
+                !canSummarize
+                  ? "Load a transcript first"
+                  : summaryLoading
+                  ? "Summarizing…"
+                  : "Summarize (generate + switch)"
+              }
               className={[
                 "absolute bottom-3 right-3 rounded-full border shadow-sm",
                 "h-11 w-11 flex items-center justify-center",
                 "transition active:translate-y-[1px]",
-                canSummarize
+                canSummarize && !summaryLoading
                   ? "bg-white border-slate-300 text-slate-900 hover:bg-slate-100"
                   : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
               ].join(" ")}
