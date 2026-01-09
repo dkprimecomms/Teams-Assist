@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.js
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import MeetingsSidebar from "./components/sidebar/MeetingsSidebar";
@@ -7,15 +7,8 @@ import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
 
-// whoami
-import { getTeamsToken } from "./api/authApi";
-import { postJson } from "./api/http";
-
-// ✅ summary
-import { fetchSummaryForMeeting } from "./api/summaryApi";
-
 export default function App() {
-  const [statusTab, setStatusTab] = useState("upcoming");
+  const [statusTab, setStatusTab] = useState("upcoming"); // "upcoming" | "completed" | "skipped"
   const [selectedMeetingId, setSelectedMeetingId] = useState("");
 
   const [meetings, setMeetings] = useState([]);
@@ -30,29 +23,11 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  const [meEmail, setMeEmail] = useState("");
+  // ✅ responsive toggles
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
 
-  // ✅ summary cache: { [meetingId]: summaryObj }
-  const [summaryByMeetingId, setSummaryByMeetingId] = useState({});
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getTeamsToken();
-        const { res, data } = await postJson("/whoami", { token });
-        if (!cancelled && res.ok && data?.ok && data?.upn) {
-          setMeEmail(String(data.upn).toLowerCase());
-        }
-      } catch {}
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 1) Load meetings for selected tab
+  // 1) Load meetings (backend filters by status)
   useEffect(() => {
     let cancelled = false;
 
@@ -100,9 +75,22 @@ export default function App() {
     setSelectedMeetingId(meetings?.[0]?.id || "");
   }, [meetings, selectedMeetingId]);
 
-  // 3) Load participants
+  // 3) Participants:
+  // ✅ Upcoming: use attendees from /graph/events (instant)
+  // ✅ Completed/Skipped: keep your invitees call (optional but fine)
   useEffect(() => {
     if (!selectedMeetingId) return;
+
+    const m = meetings.find((x) => x.id === selectedMeetingId);
+    if (!m) return;
+
+    // upcoming -> attendees already returned by backend
+    if (m.status === "upcoming") {
+      setParticipants(m.attendees || []);
+      setParticipantsLoading(false);
+      setParticipantsError("");
+      return;
+    }
 
     let cancelled = false;
 
@@ -126,9 +114,9 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMeetingId]);
+  }, [selectedMeetingId, meetings]);
 
-  // 4) Load transcript ONLY for completed meetings with joinWebUrl
+  // 4) Transcript ONLY for completed
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -177,46 +165,59 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
+  // 5) Selected meeting object
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // ✅ onFetchSummary called by TranscriptPanel
-  async function onFetchSummary(meeting) {
-    if (!meeting?.id) return;
-
-    // Already cached
-    if (summaryByMeetingId[meeting.id]) return;
-
-    // Mock mode: do nothing (your mock summary may already be present)
-    const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
-    if (USE_MOCKS) return;
-
-    const summaryObj = await fetchSummaryForMeeting(meeting);
-    setSummaryByMeetingId((prev) => ({ ...prev, [meeting.id]: summaryObj }));
-  }
-
+  // 6) Merge details + participants + transcript into selected
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
     return {
       ...selectedRaw,
-      participants: participants || [],
-      transcript: transcriptLoading
-        ? "Loading transcript…"
-        : transcriptError
-        ? `Transcript load failed: ${transcriptError}`
-        : transcriptText || "",
-      summaryObj: summaryByMeetingId[selectedRaw.id] || null, // ✅ attach cached summary
+      // prefer fetched invitees (completed), fallback to attendees (upcoming)
+      participants: (participants && participants.length ? participants : selectedRaw.attendees) || [],
+      organizer: selectedRaw.organizer || null,
+      attendees: selectedRaw.attendees || [],
+      location: selectedRaw.location || "",
+      bodyPreview: selectedRaw.bodyPreview || "",
+      transcript:
+        transcriptLoading ? "Loading transcript…" : transcriptError ? `Transcript load failed: ${transcriptError}` : transcriptText || "",
     };
-  }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError, summaryByMeetingId]);
+  }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-    <div className="h-[100dvh] w-full bg-slate-50 overflow-hidden">
-      <div className="h-full grid grid-cols-1 lg:grid-cols-[320px_1fr] min-h-0">
-        {/* Sidebar (Desktop) */}
-        <div className="relative h-full min-h-0 hidden lg:block">
+    <div className="h-screen w-full bg-slate-50 overflow-hidden">
+      {/* Mobile overlay for sidebar */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Mobile sidebar drawer */}
+      <div
+        className={[
+          "fixed z-50 inset-y-0 left-0 w-[320px] bg-white md:hidden",
+          "transform transition-transform duration-200 ease-out",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
+        <MeetingsSidebar
+          statusTab={statusTab}
+          setStatusTab={setStatusTab}
+          meetings={meetings}
+          selectedMeetingId={selectedMeetingId}
+          setSelectedMeetingId={(id) => {
+            setSelectedMeetingId(id);
+            setSidebarOpen(false);
+          }}
+        />
+      </div>
+
+      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[320px_1fr]">
+        {/* Sidebar (desktop) */}
+        <div className="hidden md:block relative h-full min-h-0 border-r border-slate-200 bg-white">
           <MeetingsSidebar
             statusTab={statusTab}
             setStatusTab={setStatusTab}
@@ -230,7 +231,6 @@ export default function App() {
               Loading meetings...
             </div>
           )}
-
           {meetingsError && (
             <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
               {meetingsError}
@@ -238,72 +238,14 @@ export default function App() {
           )}
         </div>
 
-        {/* Sidebar Drawer (Tablet/Mobile) */}
-        <div className="lg:hidden">
-          <div
-            className={[
-              "fixed inset-0 z-40 bg-black/30 transition-opacity",
-              sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
-            ].join(" ")}
-            onClick={() => setSidebarOpen(false)}
-          />
-
-          <div
-            className={[
-              "fixed top-0 left-0 bottom-0 z-50 w-[320px] max-w-[90vw] bg-white shadow-xl",
-              "transition-transform duration-300 ease-out",
-              sidebarOpen ? "translate-x-0" : "-translate-x-full",
-            ].join(" ")}
-          >
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <div className="text-base font-semibold text-slate-900">Meetings</div>
-                <div className="text-xs text-slate-500">Filter and select a meeting</div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="h-[calc(100%-73px)]">
-              <MeetingsSidebar
-                statusTab={statusTab}
-                setStatusTab={setStatusTab}
-                meetings={meetings}
-                selectedMeetingId={selectedMeetingId}
-                setSelectedMeetingId={(id) => {
-                  setSelectedMeetingId(id);
-                  setSidebarOpen(false);
-                }}
-              />
-            </div>
-
-            {loadingMeetings && (
-              <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-                Loading meetings...
-              </div>
-            )}
-
-            {meetingsError && (
-              <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
-                {meetingsError}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Main */}
         <div className="relative h-full min-h-0 overflow-hidden">
           <MainLayout
             selected={selected}
-            meEmail={meEmail}
-            onOpenSidebar={() => setSidebarOpen(true)}
-            onFetchSummary={onFetchSummary} // ✅ pass down
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            participantsOpen={participantsOpen}
+            setParticipantsOpen={setParticipantsOpen}
           />
 
           {participantsLoading && (
@@ -311,7 +253,6 @@ export default function App() {
               Loading participants...
             </div>
           )}
-
           {participantsError && (
             <div className="absolute top-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
               {participantsError}

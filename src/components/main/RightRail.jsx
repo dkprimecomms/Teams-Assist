@@ -4,7 +4,6 @@ import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
 
-
 function initials(nameOrEmail) {
   const s = (nameOrEmail || "").trim();
   if (!s) return "?";
@@ -34,13 +33,13 @@ export default function RightRail({ selected }) {
         className="w-full"
         bodyClassName="min-h-0"
         title={
-  <div className="flex items-center gap-2">
-    <span className="text-base font-semibold text-slate-900">Participants</span>
-    <span className="text-slate-500">
-      <ParticipantsIcon />
-    </span>
-  </div>
-}
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-slate-900">Participants</span>
+            <span className="text-slate-500">
+              <ParticipantsIcon />
+            </span>
+          </div>
+        }
         subtitle="People invited to the selected meeting."
       >
         {/* ✅ scroll inside the card body */}
@@ -81,6 +80,7 @@ export default function RightRail({ selected }) {
                         />
                       </div>
 
+                      {/* Text */}
                       <div className="min-w-0">
                         <div className="font-semibold truncate">{p.name || "(no name)"}</div>
                         <div className="text-xs text-slate-500 truncate">{p.email}</div>
