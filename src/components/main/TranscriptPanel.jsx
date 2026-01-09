@@ -1,4 +1,4 @@
-//src/components/main/TranscriptPanel.jsx
+// src/components/main/TranscriptPanel.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
@@ -15,6 +15,16 @@ function SummarizeIcon({ className = "" }) {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </svg>
+  );
+}
+
 function initials(nameOrEmail) {
   const s = (nameOrEmail || "").trim();
   if (!s) return "?";
@@ -25,22 +35,17 @@ function initials(nameOrEmail) {
 }
 
 /**
- * Very simple VTT transcript parser.
- * Expected lines like:
- * 00:00:00.000 --> 00:00:05.000
- * Organizer: Hello
- *
- * We extract "Speaker: text"
+ * Robust-ish VTT transcript parser:
+ * Supports:
+ * - "Speaker: text"
+ * - <v Speaker>text</v>
+ * - "Speaker" line followed by body lines
  */
 function parseVttToMessages(vtt) {
   const raw = String(vtt || "");
   if (!raw.trim()) return [];
 
-  // Normalize line endings and remove WEBVTT header
-  const cleaned = raw
-    .replace(/\r/g, "")
-    .replace(/^WEBVTT[^\n]*\n+/i, "");
-
+  const cleaned = raw.replace(/\r/g, "").replace(/^WEBVTT[^\n]*\n+/i, "");
   const lines = cleaned.split("\n");
 
   const messages = [];
@@ -52,11 +57,10 @@ function parseVttToMessages(vtt) {
     /^NOTE\b/i.test(s) ||
     /^STYLE\b/i.test(s) ||
     /^REGION\b/i.test(s) ||
-    /^[0-9]+$/.test(s.trim()); // cue id lines
+    /^[0-9]+$/.test(s.trim());
 
   const stripTags = (s) => String(s || "").replace(/<[^>]*>/g, "").trim();
 
-  // Extract <v Speaker>text</v> or <v Speaker>text
   const parseVoiceTag = (s) => {
     const m = String(s || "").match(/<v\s+([^>]+)>([\s\S]*)<\/v>/i);
     if (m) return { speaker: stripTags(m[1]), text: stripTags(m[2]) };
@@ -70,13 +74,11 @@ function parseVttToMessages(vtt) {
   while (i < lines.length) {
     const line = (lines[i] || "").trim();
 
-    // Skip empty + metadata lines
     if (isMeta(line)) {
       i += 1;
       continue;
     }
 
-    // If we hit a time range, consume its payload until blank line
     if (isTimeRange(line)) {
       i += 1;
 
@@ -89,66 +91,56 @@ function parseVttToMessages(vtt) {
         i += 1;
       }
 
-      // Parse chunk lines
-      // 1) Prefer <v Speaker>text</v>
+      let parsedAny = false;
+
       for (const c of chunk) {
         const vt = parseVoiceTag(c);
         if (vt && vt.speaker) {
           messages.push({ speaker: vt.speaker, text: vt.text || "" });
+          parsedAny = true;
           continue;
         }
 
-        // 2) "Speaker: text"
         const m = c.match(/^([^:]{1,80}):\s*(.+)$/);
         if (m) {
           messages.push({ speaker: stripTags(m[1]), text: stripTags(m[2]) });
+          parsedAny = true;
           continue;
         }
       }
 
-      // 3) If nothing matched, attempt "Speaker" on first line + rest as text
-      if (messages.length === 0 || (chunk.length && !chunk.some((c) => /<v\s+|:/.test(c)))) {
-        // Common Teams pattern: first line is speaker, following lines are the utterance
+      // speaker line + body line(s)
+      if (!parsedAny) {
         if (chunk.length >= 2) {
           const possibleSpeaker = stripTags(chunk[0]);
           const body = stripTags(chunk.slice(1).join("\n"));
-          if (possibleSpeaker && body) {
-            messages.push({ speaker: possibleSpeaker, text: body });
-          } else if (body) {
-            messages.push({ speaker: "Unknown", text: body });
-          }
+          if (possibleSpeaker && body) messages.push({ speaker: possibleSpeaker, text: body });
+          else if (body) messages.push({ speaker: "Unknown", text: body });
         } else if (chunk.length === 1) {
           const only = stripTags(chunk[0]);
           if (only) messages.push({ speaker: "Unknown", text: only });
         }
       }
 
-      // Move past blank separator (if present)
       while (i < lines.length && !(lines[i] || "").trim()) i += 1;
       continue;
     }
 
-    // Non time-range line: ignore
     i += 1;
   }
 
-  // Merge consecutive messages from same speaker
+  // merge consecutive messages from same speaker
   const merged = [];
   for (const msg of messages) {
     if (!msg.text) continue;
     const prev = merged[merged.length - 1];
-    if (prev && prev.speaker === msg.speaker) {
-      prev.text = `${prev.text}\n${msg.text}`;
-    } else {
-      merged.push({ speaker: msg.speaker || "Unknown", text: msg.text });
-    }
+    if (prev && prev.speaker === msg.speaker) prev.text = `${prev.text}\n${msg.text}`;
+    else merged.push({ speaker: msg.speaker || "Unknown", text: msg.text });
   }
 
   return merged;
 }
 
-
-// ✅ Animated toggle (blue pill)
 function SegmentedToggle({ value, onChange }) {
   const isTranscript = value === "transcript";
 
@@ -190,15 +182,26 @@ function ParticipantsGroup({ participants = [], photoUrlByEmail = {} }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex -space-x-2">
-        {items.map((p) => (
-          <div
-            key={(p.email || p.name) + (p.role || "")}
-            className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-700"
-            title={p.name || p.email}
-          >
-            {initials(p.name || p.email)}
-          </div>
-        ))}
+        {items.map((p) => {
+          const email = (p.email || "").toLowerCase();
+          const photo = photoUrlByEmail[email];
+
+          return (
+            <div
+              key={(p.email || p.name) + (p.role || "")}
+              className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 overflow-hidden flex items-center justify-center"
+              title={p.name || p.email}
+            >
+              {photo ? (
+                <img src={photo} alt={p.name || p.email} className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-[10px] font-semibold text-slate-700">
+                  {initials(p.name || p.email)}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
       {extra > 0 && <span className="text-xs text-slate-600">+{extra}</span>}
     </div>
@@ -209,23 +212,12 @@ function stripHtml(s) {
   return String(s || "").replace(/<[^>]*>/g, "");
 }
 
-function MenuIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
-  );
-}
-
 function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
   const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
   const joinUrl = selected?.joinWebUrl || raw?.onlineMeeting?.joinUrl || "";
-  const location =
-    selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
+  const location = selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
 
   return (
@@ -305,7 +297,13 @@ function MeetingDetails({ selected }) {
   );
 }
 
-export default function TranscriptPanel({ selected, participants = [], myEmail = "", onOpenParticipants, onOpenSidebar }) {
+export default function TranscriptPanel({
+  selected,
+  participants = [],
+  myEmail = "",
+  onOpenParticipants,
+  onOpenSidebar,
+}) {
   const [tab, setTab] = useState("transcript");
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -326,19 +324,6 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
     [isCompleted, transcriptText]
   );
 
-  function isMine(msg) {
-  const me = String(myEmail || "").toLowerCase().trim();
-  if (!me) return false;
-
-  const p = findParticipantForSpeaker(msg.speaker);
-  if (p?.email) return String(p.email).toLowerCase() === me;
-
-  // fallback: match speaker text to my email local-part
-  const local = me.split("@")[0];
-  return local && String(msg.speaker || "").toLowerCase().includes(local);
-}
-
-
   const messages = useMemo(() => {
     if (!isCompleted) return [];
     if (!transcriptText || transcriptText.startsWith("Loading")) return [];
@@ -346,82 +331,67 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
     return parseVttToMessages(transcriptText);
   }, [isCompleted, transcriptText]);
 
-  // map speaker -> participant object (best-effort)
- function findParticipantForSpeaker(speaker) {
-  const s = String(speaker || "").toLowerCase().trim();
-  if (!s) return null;
+  function findParticipantForSpeaker(speaker) {
+    const s = String(speaker || "").toLowerCase().trim();
+    if (!s) return null;
 
-  // normalize: remove role suffixes in transcripts like "(Organizer)"
-  const sNorm = s.replace(/\(.*?\)/g, "").trim();
-
-  return (participants || []).find((p) => {
-    const name = String(p.name || "").toLowerCase().trim();
-    const email = String(p.email || "").toLowerCase().trim();
-    if (!name && !email) return false;
+    const sNorm = s.replace(/\(.*?\)/g, "").trim();
 
     return (
-      (name && (name.includes(sNorm) || sNorm.includes(name))) ||
-      (email && (email.includes(sNorm) || sNorm.includes(email.split("@")[0])))
-    );
-  }) || null;
-}
+      (participants || []).find((p) => {
+        const name = String(p.name || "").toLowerCase().trim();
+        const email = String(p.email || "").toLowerCase().trim();
+        if (!name && !email) return false;
 
+        return (
+          (name && (name.includes(sNorm) || sNorm.includes(name))) ||
+          (email && (email.includes(sNorm) || sNorm.includes(email.split("@")[0])))
+        );
+      }) || null
+    );
+  }
 
   function isMine(msg) {
-    // If we know my email, compare against matched participant email
+    const me = String(myEmail || "").toLowerCase().trim();
+    if (!me) return false;
+
     const p = findParticipantForSpeaker(msg.speaker);
-    if (myEmail && p?.email) return String(p.email).toLowerCase() === myEmail;
+    if (p?.email) return String(p.email).toLowerCase() === me;
 
-    // fallback: if speaker literally contains your name/email fragment
-    if (myEmail && msg.speaker && String(msg.speaker).toLowerCase().includes(myEmail.split("@")[0])) return true;
-
-    // last resort: treat "Dheepan" as mine if it exists in participants organizer (from mocks)
-    const org = (participants || []).find((x) => String(x.role).toLowerCase() === "organizer");
-    if (org?.name && msg.speaker) {
-      const a = org.name.toLowerCase().split(/\s+/)[0];
-      if (a && msg.speaker.toLowerCase().includes(a)) return true;
-    }
-
-    return false;
+    const local = me.split("@")[0];
+    return local && String(msg.speaker || "").toLowerCase().includes(local);
   }
 
   function avatarForParticipant(p, fallbackLabel) {
-    {items.map((p) => {
-    const email = (p.email || "").toLowerCase();
-    const photo = photoUrlByEmail[email];
+    const email = (p?.email || "").toLowerCase();
+    const photo = email ? photoUrlByEmail[email] : null;
+
+    if (photo) {
+      return (
+        <img
+          src={photo}
+          alt={p?.name || p?.email || fallbackLabel}
+          className="h-8 w-8 rounded-full object-cover border border-slate-200"
+        />
+      );
+    }
 
     return (
-      <div
-        key={(p.email || p.name) + (p.role || "")}
-        className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 overflow-hidden flex items-center justify-center"
-        title={p.name || p.email}
-      >
-        {photo ? (
-          <img
-            src={photo}
-            alt={p.name || p.email}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="text-[10px] font-semibold text-slate-700">
-            {initials(p.name || p.email)}
-          </span>
-        )}
+      <div className="h-8 w-8 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-700">
+        {initials(p?.name || p?.email || fallbackLabel)}
       </div>
     );
-  })}
-
   }
 
   function onSummarizeClick() {
     if (!canSummarize) return;
-    setTab("summary"); // ✅ auto toggle
+    setTab("summary");
   }
 
   const headerTitle = (
     <div className="flex items-center justify-between gap-3 w-full">
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* ✅ Sidebar button (mobile + tablet only) */}
+        {/* Sidebar button (mobile/tablet only) */}
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -432,43 +402,32 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
         </button>
 
         <div className="min-w-0">
-          <div className="font-semibold text-slate-900 truncate">
-            {selected?.title || "Select a meeting"}
-          </div>
-          <div className="text-xs text-slate-500 line-clamp-2">
-            {selected?.when || ""}
-          </div>
+          <div className="font-semibold text-slate-900 truncate">{selected?.title || "Select a meeting"}</div>
+          <div className="text-xs text-slate-500 line-clamp-2">{selected?.when || ""}</div>
         </div>
       </div>
 
+      <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
+        {isCompleted && <SegmentedToggle value={tab} onChange={setTab} />}
 
-       <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
-      {isCompleted && (<SegmentedToggle value={tab} onChange={setTab} />)}
-      
-      {/* Only below lg */}
-      <div className="flex items-center gap-2 lg:hidden">
-       
-        <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
-        <button
-          onClick={onOpenParticipants}
-          className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
-          title="Participants"
-          type="button"
-        >
-          <ParticipantsIcon />
-        </button>
-      </div>
+        {/* Only below lg */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
+          <button
+            onClick={onOpenParticipants}
+            className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
+            title="Participants"
+            type="button"
+          >
+            <ParticipantsIcon />
+          </button>
+        </div>
       </div>
     </div>
   );
 
   return (
-    <Card
-      className="h-full w-full"
-      bodyClassName="min-h-0"
-      title={headerTitle}
-    
-    >
+    <Card className="h-full w-full" bodyClassName="min-h-0" title={headerTitle}>
       {/* Upcoming = Meeting Details */}
       {isUpcoming ? (
         <div className="h-full min-h-0 overflow-auto pr-1">
@@ -503,14 +462,8 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
                       key={`${idx}-${msg.speaker}`}
                       className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
                     >
-                      {/* Left avatar */}
-                      {!mine && (
-                        <div className="shrink-0">
-                          {avatarForParticipant(p, msg.speaker)}
-                        </div>
-                      )}
+                      {!mine && <div className="shrink-0">{avatarForParticipant(p, msg.speaker)}</div>}
 
-                      {/* Bubble */}
                       <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
                         <div
                           className={[
@@ -520,22 +473,14 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
                               : "bg-white text-slate-900 border-slate-200",
                           ].join(" ")}
                         >
-                          {/* Speaker label for others */}
                           {!mine && (
-                            <div className="text-[11px] font-semibold text-slate-500 mb-1">
-                              {msg.speaker}
-                            </div>
+                            <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>
                           )}
                           <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                         </div>
                       </div>
 
-                      {/* Right avatar */}
-                      {mine && (
-                        <div className="shrink-0">
-                          {avatarForParticipant(p, "Me")}
-                        </div>
-                      )}
+                      {mine && <div className="shrink-0">{avatarForParticipant(p, "Me")}</div>}
                     </div>
                   );
                 })}
