@@ -33,64 +33,120 @@ function initials(nameOrEmail) {
  * We extract "Speaker: text"
  */
 function parseVttToMessages(vtt) {
-  const text = String(vtt || "");
-  if (!text.trim()) return [];
+  const raw = String(vtt || "");
+  if (!raw.trim()) return [];
 
-  // remove WEBVTT header
-  const cleaned = text.replace(/^WEBVTT.*\n+/i, "");
+  // Normalize line endings and remove WEBVTT header
+  const cleaned = raw
+    .replace(/\r/g, "")
+    .replace(/^WEBVTT[^\n]*\n+/i, "");
 
-  const lines = cleaned.split("\n").map((l) => l.trim());
+  const lines = cleaned.split("\n");
+
   const messages = [];
-
   let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
 
-    // time range line
-    if (line.includes("-->")) {
+  const isTimeRange = (s) => typeof s === "string" && s.includes("-->");
+  const isMeta = (s) =>
+    !s ||
+    /^NOTE\b/i.test(s) ||
+    /^STYLE\b/i.test(s) ||
+    /^REGION\b/i.test(s) ||
+    /^[0-9]+$/.test(s.trim()); // cue id lines
+
+  const stripTags = (s) => String(s || "").replace(/<[^>]*>/g, "").trim();
+
+  // Extract <v Speaker>text</v> or <v Speaker>text
+  const parseVoiceTag = (s) => {
+    const m = String(s || "").match(/<v\s+([^>]+)>([\s\S]*)<\/v>/i);
+    if (m) return { speaker: stripTags(m[1]), text: stripTags(m[2]) };
+
+    const m2 = String(s || "").match(/<v\s+([^>]+)>([\s\S]*)/i);
+    if (m2) return { speaker: stripTags(m2[1]), text: stripTags(m2[2]) };
+
+    return null;
+  };
+
+  while (i < lines.length) {
+    const line = (lines[i] || "").trim();
+
+    // Skip empty + metadata lines
+    if (isMeta(line)) {
+      i += 1;
+      continue;
+    }
+
+    // If we hit a time range, consume its payload until blank line
+    if (isTimeRange(line)) {
       i += 1;
 
-      // collect text lines until blank
       const chunk = [];
-      while (i < lines.length && lines[i] !== "") {
-        chunk.push(lines[i]);
+      while (i < lines.length) {
+        const t = (lines[i] || "").trim();
+        if (!t) break;
+        if (/^NOTE\b/i.test(t)) break;
+        chunk.push(t);
         i += 1;
       }
 
-      // chunk can include multiple speaker lines
-      for (const raw of chunk) {
-        // "Name: message"
-        const m = raw.match(/^([^:]{1,60}):\s*(.+)$/);
+      // Parse chunk lines
+      // 1) Prefer <v Speaker>text</v>
+      for (const c of chunk) {
+        const vt = parseVoiceTag(c);
+        if (vt && vt.speaker) {
+          messages.push({ speaker: vt.speaker, text: vt.text || "" });
+          continue;
+        }
+
+        // 2) "Speaker: text"
+        const m = c.match(/^([^:]{1,80}):\s*(.+)$/);
         if (m) {
-          messages.push({
-            speaker: m[1].trim(),
-            text: m[2].trim(),
-          });
-        } else if (raw) {
-          // if no speaker label, append to previous message if possible
-          const last = messages[messages.length - 1];
-          if (last) last.text = `${last.text}\n${raw}`;
-          else messages.push({ speaker: "Unknown", text: raw });
+          messages.push({ speaker: stripTags(m[1]), text: stripTags(m[2]) });
+          continue;
         }
       }
-    } else {
-      i += 1;
+
+      // 3) If nothing matched, attempt "Speaker" on first line + rest as text
+      if (messages.length === 0 || (chunk.length && !chunk.some((c) => /<v\s+|:/.test(c)))) {
+        // Common Teams pattern: first line is speaker, following lines are the utterance
+        if (chunk.length >= 2) {
+          const possibleSpeaker = stripTags(chunk[0]);
+          const body = stripTags(chunk.slice(1).join("\n"));
+          if (possibleSpeaker && body) {
+            messages.push({ speaker: possibleSpeaker, text: body });
+          } else if (body) {
+            messages.push({ speaker: "Unknown", text: body });
+          }
+        } else if (chunk.length === 1) {
+          const only = stripTags(chunk[0]);
+          if (only) messages.push({ speaker: "Unknown", text: only });
+        }
+      }
+
+      // Move past blank separator (if present)
+      while (i < lines.length && !(lines[i] || "").trim()) i += 1;
+      continue;
     }
+
+    // Non time-range line: ignore
+    i += 1;
   }
 
-  // merge consecutive messages from same speaker (chat-style)
+  // Merge consecutive messages from same speaker
   const merged = [];
   for (const msg of messages) {
+    if (!msg.text) continue;
     const prev = merged[merged.length - 1];
     if (prev && prev.speaker === msg.speaker) {
       prev.text = `${prev.text}\n${msg.text}`;
     } else {
-      merged.push({ ...msg });
+      merged.push({ speaker: msg.speaker || "Unknown", text: msg.text });
     }
   }
 
   return merged;
 }
+
 
 // ✅ Animated toggle (blue pill)
 function SegmentedToggle({ value, onChange }) {
@@ -277,21 +333,25 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
   }, [isCompleted, transcriptText]);
 
   // map speaker -> participant object (best-effort)
-  function findParticipantForSpeaker(speaker) {
-    const s = String(speaker || "").toLowerCase();
+ function findParticipantForSpeaker(speaker) {
+  const s = String(speaker || "").toLowerCase().trim();
+  if (!s) return null;
 
-    // match by name contains
-    const byName = (participants || []).find((p) => (p.name || "").toLowerCase().includes(s));
-    if (byName) return byName;
+  // normalize: remove role suffixes in transcripts like "(Organizer)"
+  const sNorm = s.replace(/\(.*?\)/g, "").trim();
 
-    // match exact organizer label "Organizer"
-    if (s === "organizer") {
-      const org = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
-      if (org) return org;
-    }
+  return (participants || []).find((p) => {
+    const name = String(p.name || "").toLowerCase().trim();
+    const email = String(p.email || "").toLowerCase().trim();
+    if (!name && !email) return false;
 
-    return null;
-  }
+    return (
+      (name && (name.includes(sNorm) || sNorm.includes(name))) ||
+      (email && (email.includes(sNorm) || sNorm.includes(email.split("@")[0])))
+    );
+  }) || null;
+}
+
 
   function isMine(msg) {
     // If we know my email, compare against matched participant email
