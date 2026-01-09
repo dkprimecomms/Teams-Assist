@@ -23,6 +23,7 @@ export default function MainLayout({
             participants={participants}
             myEmail={myEmail}
             onOpenParticipants={() => setParticipantsOpen(true)}
+            onOpenSidebar={() => setSidebarOpen(true)}
           />  
         </div>
 

@@ -182,7 +182,7 @@ function SegmentedToggle({ value, onChange }) {
   );
 }
 
-function ParticipantsGroup({ participants = [] }) {
+function ParticipantsGroup({ participants = [], photoUrlByEmail = {} }) {
   const items = participants.slice(0, 6);
   const extra = participants.length - items.length;
   if (!participants.length) return null;
@@ -207,6 +207,16 @@ function ParticipantsGroup({ participants = [] }) {
 
 function stripHtml(s) {
   return String(s || "").replace(/<[^>]*>/g, "");
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </svg>
+  );
 }
 
 function MeetingDetails({ selected }) {
@@ -295,7 +305,7 @@ function MeetingDetails({ selected }) {
   );
 }
 
-export default function TranscriptPanel({ selected, participants = [], myEmail = "", onOpenParticipants }) {
+export default function TranscriptPanel({ selected, participants = [], myEmail = "", onOpenParticipants, onOpenSidebar }) {
   const [tab, setTab] = useState("transcript");
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -376,18 +386,31 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
   }
 
   function avatarForParticipant(p, fallbackLabel) {
-    const email = (p?.email || "").toLowerCase();
-    const photo = email ? photoUrlByEmail[email] : null;
-
-    if (photo) {
-      return <img src={photo} alt={p?.name || p?.email} className="h-8 w-8 rounded-full object-cover border border-slate-200" />;
-    }
+    {items.map((p) => {
+    const email = (p.email || "").toLowerCase();
+    const photo = photoUrlByEmail[email];
 
     return (
-      <div className="h-8 w-8 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-700">
-        {initials(p?.name || p?.email || fallbackLabel)}
+      <div
+        key={(p.email || p.name) + (p.role || "")}
+        className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 overflow-hidden flex items-center justify-center"
+        title={p.name || p.email}
+      >
+        {photo ? (
+          <img
+            src={photo}
+            alt={p.name || p.email}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-[10px] font-semibold text-slate-700">
+            {initials(p.name || p.email)}
+          </span>
+        )}
       </div>
     );
+  })}
+
   }
 
   function onSummarizeClick() {
@@ -398,6 +421,16 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
   const headerTitle = (
     <div className="flex items-center justify-between gap-3 w-full">
       <div className="flex items-center gap-3 flex-1 min-w-0">
+        {/* ✅ Sidebar button (mobile + tablet only) */}
+        <button
+          type="button"
+          onClick={onOpenSidebar}
+          className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
+          title="Meetings"
+        >
+          <MenuIcon />
+        </button>
+
         <div className="min-w-0">
           <div className="font-semibold text-slate-900 truncate">
             {selected?.title || "Select a meeting"}
@@ -408,13 +441,14 @@ export default function TranscriptPanel({ selected, participants = [], myEmail =
         </div>
       </div>
 
+
        <div className="flex flex-col items-end gap-2 lg:flex-row lg:items-center">
       {isCompleted && (<SegmentedToggle value={tab} onChange={setTab} />)}
       
       {/* Only below lg */}
       <div className="flex items-center gap-2 lg:hidden">
        
-        <ParticipantsGroup participants={participants} />
+        <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
         <button
           onClick={onOpenParticipants}
           className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"

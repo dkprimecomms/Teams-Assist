@@ -6,56 +6,51 @@ export function useParticipantPhotos(participants, apiBaseUrl) {
   const [photoUrlByEmail, setPhotoUrlByEmail] = useState({});
   const objectUrlsRef = useRef([]);
 
-  useEffect(() => {
-    // cleanup old blob urls
-    objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    objectUrlsRef.current = [];
-    setPhotoUrlByEmail({});
+  const emails = (participants || [])
+  .map((p) => (p?.email || "").toLowerCase())
+  .filter(Boolean);
 
-    const emails = (participants || [])
-      .map((p) => (p?.email || "").toLowerCase())
-      .filter(Boolean);
+const emailsKey = emails.join("|");
 
-    if (emails.length === 0) return;
+useEffect(() => {
+  // cleanup old blob urls
+  objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+  objectUrlsRef.current = [];
+  setPhotoUrlByEmail({});
 
-    let cancelled = false;
+  if (!emailsKey) return;
 
-    (async () => {
-      const token = await getTeamsToken();
-      const base = (apiBaseUrl || "").replace(/\/+$/, "");
+  let cancelled = false;
 
-      const results = {};
+  (async () => {
+    const token = await getTeamsToken();
+    const base = (apiBaseUrl || "").replace(/\/+$/, "");
+    const results = {};
 
-      // Fetch photos in parallel (limit-ish: simple parallel is fine for small lists)
-      await Promise.all(
-        emails.map(async (email) => {
-          try {
-            const res = await fetch(`${base}/graph/photo?userIdOrEmail=${encodeURIComponent(email)}`, {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
+    await Promise.all(
+      emails.map(async (email) => {
+        try {
+          const res = await fetch(
+            `${base}/graph/photo?userIdOrEmail=${encodeURIComponent(email)}`,
+            { method: "GET", headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (!res.ok) return;
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          objectUrlsRef.current.push(url);
+          results[email] = url;
+        } catch {}
+      })
+    );
 
-            if (!res.ok) return;
+    if (!cancelled) setPhotoUrlByEmail(results);
+  })();
 
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            objectUrlsRef.current.push(url);
-            results[email] = url;
-          } catch {
-            // ignore
-          }
-        })
-      );
+  return () => {
+    cancelled = true;
+  };
+}, [emailsKey, apiBaseUrl]);
 
-      if (!cancelled) setPhotoUrlByEmail(results);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [participants, apiBaseUrl]);
 
   return photoUrlByEmail;
 }
