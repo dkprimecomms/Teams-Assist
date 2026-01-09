@@ -6,6 +6,8 @@ import MainLayout from "./components/main/MainLayout";
 import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
+import { getTeamsUser } from "./api/teamsContext";
+
 
 export default function App() {
   const [statusTab, setStatusTab] = useState("upcoming"); // "upcoming" | "completed" | "skipped"
@@ -26,6 +28,23 @@ export default function App() {
   // ✅ responsive toggles
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [myEmail, setMyEmail] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const u = await getTeamsUser();
+        if (!cancelled) setMyEmail(u.email || "");
+      } catch {
+        // ignore (still works, just can't right-align accurately)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   // 1) Load meetings (backend filters by status)
   useEffect(() => {
@@ -246,6 +265,7 @@ export default function App() {
             setSidebarOpen={setSidebarOpen}
             participantsOpen={participantsOpen}
             setParticipantsOpen={setParticipantsOpen}
+            myEmail={myEmail}
           />
 
           {participantsLoading && (

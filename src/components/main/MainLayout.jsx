@@ -9,6 +9,7 @@ export default function MainLayout({
   setSidebarOpen,
   participantsOpen,
   setParticipantsOpen,
+  myEmail,
 }) {
   const participants = selected?.participants || [];
 
@@ -20,6 +21,7 @@ export default function MainLayout({
           <TranscriptPanel
             selected={selected}
             participants={participants}
+            myEmail={myEmail}
             onOpenParticipants={() => setParticipantsOpen(true)}
           />  
         </div>

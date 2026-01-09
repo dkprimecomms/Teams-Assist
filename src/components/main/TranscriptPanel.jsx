@@ -295,7 +295,7 @@ function MeetingDetails({ selected }) {
   );
 }
 
-export default function TranscriptPanel({ selected, participants = [], onOpenParticipants }) {
+export default function TranscriptPanel({ selected, participants = [], myEmail = "", onOpenParticipants }) {
   const [tab, setTab] = useState("transcript");
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -316,14 +316,18 @@ export default function TranscriptPanel({ selected, participants = [], onOpenPar
     [isCompleted, transcriptText]
   );
 
-  // Who is "me"? (best-effort)
-  const myEmail = useMemo(() => {
-    const org = selected?.organizer?.email;
-    if (org) return String(org).toLowerCase();
-    const organizer = (participants || []).find((p) => String(p.role).toLowerCase() === "organizer");
-    if (organizer?.email) return String(organizer.email).toLowerCase();
-    return ""; // fallback later
-  }, [selected, participants]);
+  function isMine(msg) {
+  const me = String(myEmail || "").toLowerCase().trim();
+  if (!me) return false;
+
+  const p = findParticipantForSpeaker(msg.speaker);
+  if (p?.email) return String(p.email).toLowerCase() === me;
+
+  // fallback: match speaker text to my email local-part
+  const local = me.split("@")[0];
+  return local && String(msg.speaker || "").toLowerCase().includes(local);
+}
+
 
   const messages = useMemo(() => {
     if (!isCompleted) return [];
