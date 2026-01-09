@@ -301,7 +301,7 @@ function MeetingDetails({ selected }) {
 
 function SummaryView({ summaryLoading, summaryError, summaryValue }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
+    <div className="text-[13.5px]">
       {summaryLoading ? (
         <div className="text-slate-600">Summarizing…</div>
       ) : summaryError ? (
@@ -309,13 +309,13 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
       ) : summaryValue ? (
         <div className="space-y-4">
           <div>
-            <div className="text-xs font-semibold text-slate-500">Purpose</div>
+            <div className="text-[14px] font-semibold text-[#00A4EF] mt-1">Purpose</div>
             <div className="mt-1 whitespace-pre-wrap">{summaryValue.purpose}</div>
           </div>
 
           <div>
-            <div className="text-xs font-semibold text-slate-500">Key takeaways</div>
-            <ul className="mt-1 list-disc pl-5 space-y-1">
+            <div className="text-[14px] font-semibold text-[#00A4EF] mt-2">Key takeaways</div>
+            <ul className="mt-1 list-disc marker:text-[#00A4EF] pl-5 space-y-1">
               {(summaryValue.takeaways || []).map((t, i) => (
                 <li key={i}>{t}</li>
               ))}
@@ -323,12 +323,12 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
           </div>
 
           <div>
-            <div className="text-xs font-semibold text-slate-500">Detailed summary</div>
+            <div className="text-[14px] font-semibold text-[#00A4EF] mt-2">Detailed summary</div>
             <div className="mt-1 whitespace-pre-wrap">{summaryValue.detailedSummary}</div>
           </div>
 
           <div>
-            <div className="text-xs font-semibold text-slate-500">Action items</div>
+            <div className="text-[14px] font-semibold text-[#00A4EF] mt-2">Action items</div>
             {(summaryValue.actionItems || []).length ? (
               <ul className="mt-1 space-y-2">
                 {summaryValue.actionItems.map((a, i) => (
@@ -531,7 +531,7 @@ export default function TranscriptPanel({
         </div>
       ) : (
         <div className="relative rounded-xl border border-slate-200 bg-white h-full min-h-0 overflow-hidden flex flex-col">
-          <div className="flex-1 min-h-0 overflow-auto p-3 bg-slate-50">
+          <div className="flex-1 min-h-0 overflow-auto p-3 bg-white">
             {!selected ? (
               <div className="text-sm text-slate-600">Select a meeting.</div>
             ) : !isCompleted ? (
