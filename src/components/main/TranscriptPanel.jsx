@@ -285,9 +285,9 @@ function MeetingDetails({ selected }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
+        <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-2 border-b border-slate-100">
   <div className="text-xs font-semibold text-slate-500">Provider</div>
-  <div className="text-sm text-slate-900 min-w-0 break-all">
+<div className="text-sm text-slate-900 min-w-0 break-all">
     {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
   </div>
 </div>
@@ -561,7 +561,7 @@ export default function TranscriptPanel({
 
         {!isUpcomingOrSkipped ? (
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-slate-900 truncate">
+            <div className="font-semibold text-slate-900 break-words">
               {selected?.title || "Select a meeting"}
             </div>
             <div className="text-xs text-slate-500 line-clamp-2">{selected?.when || ""}</div>
@@ -599,7 +599,13 @@ export default function TranscriptPanel({
        {isUpcomingOrSkipped && (
   <div className="lg:hidden flex flex-col items-end gap-2">
     <div className="flex items-center gap-2">
-      <button
+      
+
+      <JoinButton />
+    </div>
+
+    <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
+    <button
         onClick={onOpenParticipants}
         className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
         title="Participants"
@@ -607,11 +613,6 @@ export default function TranscriptPanel({
       >
         <ParticipantsIcon />
       </button>
-
-      <JoinButton />
-    </div>
-
-    <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
   </div>
 )}
 {isUpcomingOrSkipped && (
