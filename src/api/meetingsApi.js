@@ -27,23 +27,27 @@ export async function fetchMeetingsByStatus(statusTab) {
   // ✅ MOCK MODE
   if (USE_MOCKS) {
     const items = (mockMeetings || []).filter((m) => m.status === statusTab);
+return items.map((m) => ({
+  id: m.id,
+  title: m.title || "(no subject)",
+  subject: m.title || "(no subject)",          // ✅ add (subtitle)
+  startUTC: m.startUTC || null,                // ✅ add
+  endUTC: m.endUTC || null,                    // ✅ add
+  recurrence: m.recurrence || null,            // ✅ add (you’ll add in mockData)
+  when: formatLocalRange12h(m.startUTC, m.endUTC),
+  status: m.status,
+  joinWebUrl: m.joinWebUrl || "",
+  onlineProvider: m.onlineProvider || "",
+  organizer: m.organizer || null,
+  attendees: m.attendees || [],
+  location: m.location || "",
+  bodyPreview: m.bodyPreview || "",
+  participants: [],
+  transcript: "",
+  summary: m.summary || "",
+  raw: m.raw || m,
+}));
 
-    return items.map((m) => ({
-      id: m.id,
-      title: m.title || "(no subject)",
-      when: formatLocalRange12h(m.startUTC, m.endUTC),
-      status: m.status,
-      joinWebUrl: m.joinWebUrl || "",
-      onlineProvider: m.onlineProvider || "",
-      organizer: m.organizer || null,
-      attendees: m.attendees || [],
-      location: m.location || "",
-      bodyPreview: m.bodyPreview || "",
-      participants: [],
-      transcript: "",
-      summary: m.summary || "",
-      raw: m.raw || m,
-    }));
   }
 
   // ✅ REAL BACKEND MODE
@@ -69,19 +73,24 @@ export async function fetchMeetingsByStatus(statusTab) {
   const items = data.value || [];
 
   return items.map((m) => ({
-    id: m.id,
-    title: m.title || "(no subject)",
-    when: formatLocalRange12h(m.startUTC, m.endUTC),
-    status: m.status,
-    joinWebUrl: m.joinWebUrl || "",
-    onlineProvider: m.onlineProvider || "",
-    organizer: m.organizer || null,
-    attendees: m.attendees || [],
-    location: m.location || "",
-    bodyPreview: m.bodyPreview || "",
-    participants: [],
-    transcript: "",
-    summary: m.summary || "",
-    raw: m.raw || m, // ✅ backend now returns raw
-  }));
+  id: m.id,
+  title: m.title || "(no subject)",
+  subject: m.raw?.subject || m.title || "(no subject)",   // ✅ add
+  startUTC: m.startUTC || null,                            // ✅ add
+  endUTC: m.endUTC || null,                                // ✅ add
+  recurrence: m.raw?.recurrence || null,                   // ✅ add
+  when: formatLocalRange12h(m.startUTC, m.endUTC),
+  status: m.status,
+  joinWebUrl: m.joinWebUrl || "",
+  onlineProvider: m.onlineProvider || "",
+  organizer: m.organizer || null,
+  attendees: m.attendees || [],
+  location: m.location || "",
+  bodyPreview: m.bodyPreview || "",
+  participants: [],
+  transcript: "",
+  summary: m.summary || "",
+  raw: m.raw || m,
+}));
+
 }

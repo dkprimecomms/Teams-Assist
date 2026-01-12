@@ -30,10 +30,14 @@ export const mockMeetings = [
     title: `Upcoming Meeting ${i + 1}`,
     status: "upcoming",
     startUTC: hoursFromNow(1 + i),
-    endUTC: hoursFromNow(1.5 + i),
+    endUTC: hoursFromNow(3 + i),
     joinWebUrl: `https://teams.microsoft.com/l/meetup-join/UPCOMING-${i + 1}`,
     onlineProvider: "teamsForBusiness",
     summary: "",
+    recurrence: {
+  pattern: { type: "weekly", interval: 1, daysOfWeek: ["monday"] },
+  range: { type: "noEnd", startDate: "2026-01-01" }
+},
   })),
 
   // ===== 6 SKIPPED =====
