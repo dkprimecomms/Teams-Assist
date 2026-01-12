@@ -222,9 +222,9 @@ function stripHtml(s) {
 
 /**
  * ✅ Upcoming/Skipped details:
- * - NO header inside (header is only in top bar)
- * - Subject, Duration, Recurrence added
- * - ✅ Long single-line URLs won't stretch the layout (break-all)
+ * - NO header inside (you asked to keep header only at top)
+ * - ✅ Subject, Duration, Recurrence added
+ * - ✅ Description moved to bottom
  */
 function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
@@ -265,6 +265,7 @@ function MeetingDetails({ selected }) {
     return base;
   })();
 
+  // ❗ Per your request: DO NOT apply "Change 2" (no extra border/rounded wrapper)
   return (
     <div className="bg-white overflow-hidden">
       <div className="p-2">
@@ -286,12 +287,11 @@ function MeetingDetails({ selected }) {
         </div>
 
         <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
-  <div className="text-xs font-semibold text-slate-500">Provider</div>
-  <div className="text-sm text-slate-900 min-w-0 break-all">
-    {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
-  </div>
-</div>
-
+          <div className="text-xs font-semibold text-slate-500">Provider</div>
+          <div className="text-sm text-slate-900 break-words">
+            {selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)"}
+          </div>
+        </div>
 
         <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
           <div className="text-xs font-semibold text-slate-500">Location</div>
@@ -300,7 +300,7 @@ function MeetingDetails({ selected }) {
 
         <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
           <div className="text-xs font-semibold text-slate-500">Subject</div>
-          <div className="text-sm text-slate-900 break-all">{subject || "(none)"}</div>
+          <div className="text-sm text-slate-900 break-words">{subject || "(none)"}</div>
         </div>
 
         <div className="grid grid-cols-[120px_1fr] gap-3 py-2 border-b border-slate-100">
@@ -313,9 +313,10 @@ function MeetingDetails({ selected }) {
           <div className="text-sm text-slate-900 break-words">{recurrenceText}</div>
         </div>
 
+        {/* ✅ Description moved to bottom */}
         <div className="grid grid-cols-[120px_1fr] gap-3 py-2">
           <div className="text-xs font-semibold text-slate-500">Description</div>
-          <div className="text-sm text-slate-700 whitespace-pre-wrap break-all">
+          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words">
             {description ? stripHtml(description).trim() : "(no description)"}
           </div>
         </div>
@@ -504,7 +505,7 @@ export default function TranscriptPanel({
     }
   }
 
-  // ✅ Join button (responsive width)
+  // ✅ Join button (responsive width) – used for upcoming/skipped header
   const JoinButton = ({ disabled = false }) => {
     if (!joinUrl || disabled) {
       return (
@@ -561,7 +562,7 @@ export default function TranscriptPanel({
 
         {!isUpcomingOrSkipped ? (
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-slate-900 truncate">
+            <div className="font-semibold text-slate-900 break-words">
               {selected?.title || "Select a meeting"}
             </div>
             <div className="text-xs text-slate-500 line-clamp-2">{selected?.when || ""}</div>
@@ -592,38 +593,23 @@ export default function TranscriptPanel({
           />
         )}
 
-        {/* ✅ Upcoming/Skipped MOBILE:
-            Row 1: Participants button + Join button
-            Row 2: Participants grouped icons (pushed below)
-        */}
-       {isUpcomingOrSkipped && (
-  <div className="lg:hidden flex flex-col items-end gap-2">
-    <div className="flex items-center gap-2">
-      <button
-        onClick={onOpenParticipants}
-        className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
-        title="Participants"
-        type="button"
-      >
-        <ParticipantsIcon />
-      </button>
+        {/* ✅ Mobile: Join button + participants icons (no overlap) */}
+        {isUpcomingOrSkipped && (
+          <div className="flex items-center gap-2 lg:hidden">
+            <JoinButton />
+            <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
+            <button
+              onClick={onOpenParticipants}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
+              title="Participants"
+              type="button"
+            >
+              <ParticipantsIcon />
+            </button>
+          </div>
+        )}
 
-      <JoinButton />
-    </div>
-
-    <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
-  </div>
-)}
-{isUpcomingOrSkipped && (
-  <div className="hidden lg:flex items-center gap-2 shrink-0">
-
-    <JoinButton />
-  </div>
-)}
-
-
-
-        {/* Completed MOBILE participants controls */}
+        {/* Completed: keep participants controls on mobile */}
         {!isUpcomingOrSkipped && (
           <div className="flex items-center gap-2 lg:hidden">
             <ParticipantsGroup participants={participants} photoUrlByEmail={photoUrlByEmail} />
@@ -703,11 +689,7 @@ export default function TranscriptPanel({
               onClick={runSummarize}
               disabled={!canSummarize || summaryLoading}
               title={
-                !canSummarize
-                  ? "Load a transcript first"
-                  : summaryLoading
-                  ? "Summarizing…"
-                  : "Summarize (generate + switch)"
+                !canSummarize ? "Load a transcript first" : summaryLoading ? "Summarizing…" : "Summarize (generate + switch)"
               }
               className={[
                 "absolute bottom-3 right-3 rounded-full border shadow-sm",
