@@ -32,7 +32,7 @@ export const mockMeetings = [
     startUTC: hoursFromNow(1 + i),
     endUTC: hoursFromNow(3 + i),
     joinWebUrl: `https://teams.microsoft.com/l/meetup-join/UPCOMING-${i + 1}`,
-    onlineProvider: "teamsForBusiness",
+    onlineProvider: "https://success.zoom.us/w/93675418287?tk=Sl_pi0TRUnT0F-MaXXx1Msuf-d9VGwsroHRWRJKvJQY.DQkAAAAVz31yrxZkVFRXS1F1SVI5Mjh2X29pdmlVelF3AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&uuid=WN_QpMwqR30RzODMJ8HSmeliQ",
     summary: "",
     recurrence: {
   pattern: { type: "weekly", interval: 1, daysOfWeek: ["monday"] },
