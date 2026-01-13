@@ -93,6 +93,10 @@ export const mockParticipantsByMeetingId = Object.fromEntries(
     ],
   ])
 );
+export const mockMeetingsWithParticipants = mockMeetings.map((m) => ({
+  ...m,
+  participants: mockParticipantsByMeetingId[m.id] || [],
+}));
 
 // -----------------------------
 // TRANSCRIPTS (only for completed)

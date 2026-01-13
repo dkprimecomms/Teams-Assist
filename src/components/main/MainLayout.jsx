@@ -18,7 +18,7 @@ export default function MainLayout({
       <div
         className={[
           "grid grid-cols-1 gap-4 flex-1 min-h-0 overflow-hidden items-stretch",
-          selected?.status === "upcoming"
+          selected?.status === "upcoming" || selected?.status === "skipped"
             ? "lg:grid-cols-[3fr_2fr]"     // ✅ 60% / 40% (upcoming)
             : "lg:grid-cols-[1fr_280px]",  // ✅ default (others)
         ].join(" ")}
