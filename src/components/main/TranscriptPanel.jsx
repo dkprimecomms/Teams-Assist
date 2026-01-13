@@ -258,6 +258,59 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
     </div>
   );
 }
+function RemainingTimeBar({ startUTC, endUTC }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000); // update every 30s
+    return () => clearInterval(id);
+  }, []);
+
+  const start = startUTC ? new Date(startUTC).getTime() : NaN;
+  const end = endUTC ? new Date(endUTC).getTime() : NaN;
+
+  if (!start || !end || Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+
+  // Only show for meetings happening now or in the future
+  const total = end - start;
+  const remaining = Math.max(0, end - now);
+  const elapsed = Math.min(total, Math.max(0, now - start));
+
+  // If meeting already ended, hide (optional)
+  if (now >= end) return null;
+
+  // Percent remaining
+  const remainingPct = Math.round((remaining / total) * 100);
+
+  // Fill bar based on elapsed (or remaining—your choice)
+  const fillPct = Math.round((elapsed / total) * 100);
+
+  const format = (ms) => {
+    const mins = Math.ceil(ms / 60000);
+    if (mins <= 0) return "0 min";
+    if (mins < 60) return `${mins} min`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+  };
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between text-xs text-slate-600">
+        <span>Remaining: {format(remaining)}</span>
+        <span>{remainingPct}%</span>
+      </div>
+
+      <div className="mt-1 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#00A4EF] transition-[width] duration-500"
+          style={{ width: `${fillPct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 
 function MeetingDetails({ selected, participants = [] }) {
   const raw = selected?.raw || {};
@@ -343,8 +396,9 @@ function MeetingDetails({ selected, participants = [] }) {
 
   return (
     <div className="bg-white overflow-hidden min-w-0">
-      <div className="p-2 min-w-0">
+      <RemainingTimeBar startUTC={selected?.startUTC} endUTC={selected?.endUTC} />
 
+      <div className="p-2 min-w-0">
         <Row label="Subject">
           <div className="text-sm text-slate-900 break-words">{subject || "(none)"}</div>
         </Row>
