@@ -142,7 +142,7 @@ function SegmentedToggle({ value, onChange, disabledSummary }) {
         className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out"
         style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
       />
-      <button
+      <button 
         type="button"
         onClick={() => onChange("transcript")}
         className={[
@@ -263,7 +263,6 @@ function MeetingDetails({ selected }) {
   const raw = selected?.raw || {};
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
   const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
-  const location = selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
   const subject = selected?.subject || raw?.subject || selected?.title || "";
 
@@ -327,10 +326,6 @@ function MeetingDetails({ selected }) {
 
         <Row label="Provider">
           <div className="text-sm text-slate-900 min-w-0 break-all">{providerText}</div>
-        </Row>
-
-        <Row label="Location">
-          <div className="text-sm text-slate-900 break-words">{location || "(none)"}</div>
         </Row>
 
         <Row label="Subject">
