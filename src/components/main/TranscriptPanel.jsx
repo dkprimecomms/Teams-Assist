@@ -189,9 +189,7 @@ function ParticipantsGroup({ participants = [], photoUrlByEmail = {} }) {
               {photo ? (
                 <img src={photo} alt={p.name || p.email} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-[10px] font-semibold text-slate-700">
-                  {initials(p.name || p.email)}
-                </span>
+                <span className="text-[10px] font-semibold text-slate-700">{initials(p.name || p.email)}</span>
               )}
             </div>
           );
@@ -259,15 +257,14 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
   );
 }
 
-function MeetingDetails({ selected, participants = [] }) {
+function MeetingDetails({ selected, participantsCount }) {
   const raw = selected?.raw || {};
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
   const organizerEmail = raw?.organizer?.emailAddress?.address || selected?.organizer?.email || "";
-  const location = selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
+  const location =
+    selected?.location || raw?.location?.displayName || raw?.locations?.[0]?.displayName || "";
   const description = selected?.bodyPreview || raw?.bodyPreview || "";
   const subject = selected?.subject || raw?.subject || selected?.title || "";
-  const participantCount = participants.length;
-
 
   const durationText = (() => {
     const s = selected?.startUTC ? new Date(selected.startUTC) : null;
@@ -297,78 +294,79 @@ function MeetingDetails({ selected, participants = [] }) {
     return base;
   })();
 
-  const providerText = selected?.onlineProvider || raw?.onlineMeetingProvider || "(not online)";
-
-  // ✅ colorful label pills (instead of slate)
- const labelPillClass = (label) => {
-  const base =
-    "inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-semibold border";
-
-  switch (label) {
-    case "Organizer":
-      return [base, "bg-green-300 border-green-300 text-green-700"].join(" ");
-    case "Status":
-      return [base, "bg-violet-300 border-violet-300 text-violet-700"].join(" ");
-    case "Participants":
-      return [base, "bg-orange-300 border-orange-300 text-orange-700"].join(" ");
-    case "Location":
-      return [base, "bg-sky-300 border-sky-300 text-sky-700"].join(" ");
-    case "Subject":
-      return [base, "bg-yellow-300 border-yellow-300 text-yellow-700"].join(" ");
-    case "Duration":
-      return [base, "bg-teal-300 border-teal-300 text-teal-700"].join(" ");
-    case "Recurrence":
-      return [base, "bg-[#c7bab1] border-[#c7bab1] text-[#47403b]"].join(" ");
-    case "Description":
-      return [base, "bg-[#a3ccf4] border-[#a3ccf4] text-[#47403b]"].join(" ");
-    default:
-      return [base, "bg-slate-300 border-slate-300 text-slate-700"].join(" ");
-  }
-};
-
+  // ✅ colorful label pills
+  const labelPillClass = (label) => {
+    const base =
+      "inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-semibold border";
+    switch (label) {
+      case "Organizer":
+        return [base, "bg-green-300 border-green-300 text-green-700"].join(" ");
+      case "Participants":
+        return [base, "bg-pink-300 border-pink-300 text-pink-700"].join(" ");
+      case "Status":
+        return [base, "bg-violet-300 border-violet-300 text-violet-700"].join(" ");
+      case "Provider":
+        return [base, "bg-orange-300 border-orange-300 text-orange-700"].join(" ");
+      case "Location":
+        return [base, "bg-sky-300 border-sky-300 text-sky-700"].join(" ");
+      case "Subject":
+        return [base, "bg-yellow-300 border-yellow-300 text-yellow-700"].join(" ");
+      case "Duration":
+        return [base, "bg-teal-300 border-teal-300 text-teal-700"].join(" ");
+      case "Recurrence":
+        return [base, "bg-[#c7bab1] border-[#c7bab1] text-[#47403b]"].join(" ");
+      case "Description":
+        return [base, "bg-[#a3ccf4] border-[#a3ccf4] text-[#47403b]"].join(" ");
+      default:
+        return [base, "bg-slate-300 border-slate-300 text-slate-700"].join(" ");
+    }
+  };
 
   const Row = ({ label, children, last = false }) => (
-    <div
-      className={[
-        "grid grid-cols-[140px_minmax(0,1fr)] gap-3 py-2",
-        !last,
-      ].join(" ")}
-    >
-      <div className="min-w-0">
-        <span className={labelPillClass(label)}>{label}</span>
+    <div className={["py-2", !last ? "border-b border-slate-200" : ""].join(" ")}>
+      {/* ✅ tighter spacing between label and value */}
+      <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-2 items-start">
+        <div className="min-w-0">
+          <span className={labelPillClass(label)}>{label}</span>
+        </div>
+        <div className="min-w-0 pt-[1px]">{children}</div>
       </div>
-      <div className="min-w-0">{children}</div>
     </div>
   );
 
   return (
     <div className="bg-white overflow-hidden min-w-0">
       <div className="p-2 min-w-0">
-
         <Row label="Subject">
-          <div className="text-sm text-slate-900 break-words">{subject || "(none)"}</div>
+          <div className="text-sm text-slate-900 break-words leading-snug">
+            {subject || "(none)"}
+          </div>
         </Row>
 
         <Row label="Organizer">
-          <div className="text-sm text-slate-900 break-words">
+          <div className="text-sm text-slate-900 break-words leading-snug">
             {organizerName || "(unknown)"}{" "}
             {organizerEmail ? <span className="text-slate-500">• {organizerEmail}</span> : null}
           </div>
         </Row>
 
-        <Row label="Duration">
-          <div className="text-sm text-slate-900">{durationText}</div>
-        </Row>
+        {/* ✅ Participants count row */}
         <Row label="Participants">
-          <div className="text-sm text-slate-900">{participantCount}</div>
+          <div className="text-sm text-slate-900 leading-snug">
+            {typeof participantsCount === "number" ? participantsCount : selected?.participants?.length || 0}
+          </div>
+        </Row>
+
+        <Row label="Duration">
+          <div className="text-sm text-slate-900 leading-snug">{durationText}</div>
         </Row>
 
         <Row label="Recurrence">
-          <div className="text-sm text-slate-900 break-words">{recurrenceText}</div>
+          <div className="text-sm text-slate-900 break-words leading-snug">{recurrenceText}</div>
         </Row>
 
         <Row label="Description" last>
-          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words min-w-0">
+          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words min-w-0 leading-snug">
             {description ? stripHtml(description).trim() : "(no description)"}
           </div>
         </Row>
@@ -376,6 +374,7 @@ function MeetingDetails({ selected, participants = [] }) {
     </div>
   );
 }
+
 
 export default function TranscriptPanel({
   selected,
@@ -427,7 +426,6 @@ export default function TranscriptPanel({
   function findParticipantForSpeaker(speaker) {
     const s = String(speaker || "").toLowerCase().trim();
     if (!s) return null;
-
     const sNorm = s.replace(/\(.*?\)/g, "").trim();
 
     return (
@@ -514,9 +512,7 @@ export default function TranscriptPanel({
 
           {!isUpcomingOrSkipped ? (
             <div className="min-w-0">
-              <div className="font-semibold text-slate-900 truncate">
-                {selected?.title || "Select a meeting"}
-              </div>
+              <div className="font-semibold text-slate-900 truncate">{selected?.title || "Select a meeting"}</div>
               <div className="text-xs text-slate-500 line-clamp-2">{selected?.when || ""}</div>
             </div>
           ) : (
@@ -540,6 +536,16 @@ export default function TranscriptPanel({
               disabledSummary={!canSummarize}
             />
           )}
+
+          {/* ✅ Mobile participants icon for ALL meeting statuses (fix missing for completed) */}
+          <button
+            onClick={onOpenParticipants}
+            className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
+            title="Participants"
+            type="button"
+          >
+            <ParticipantsIcon />
+          </button>
 
           {isUpcomingOrSkipped && (
             <div className="flex flex-col items-end gap-2">
@@ -570,15 +576,6 @@ export default function TranscriptPanel({
                     Join
                   </button>
                 )}
-
-                <button
-                  onClick={onOpenParticipants}
-                  className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
-                  title="Participants"
-                  type="button"
-                >
-                  <ParticipantsIcon />
-                </button>
               </div>
 
               <div className="md:hidden">
@@ -595,7 +592,7 @@ export default function TranscriptPanel({
     <Card className="h-full w-full min-w-0" bodyClassName="min-h-0 min-w-0" title={headerTitle}>
       {isUpcomingOrSkipped ? (
         <div className="h-full min-h-0 overflow-auto pr-1 min-w-0">
-          <MeetingDetails selected={selected} participants={participants} />
+          <MeetingDetails selected={selected} participantsCount={participants.length} />
         </div>
       ) : (
         <div className="relative h-full min-h-0 min-w-0 overflow-hidden flex flex-col">
@@ -625,7 +622,12 @@ export default function TranscriptPanel({
                     >
                       {!mine && <div className="shrink-0">{avatarForParticipant(p, msg.speaker)}</div>}
 
-                      <div className={["max-w-[78%] sm:max-w-[70%] min-w-0", mine ? "text-right" : "text-left"].join(" ")}>
+                      <div
+                        className={[
+                          "max-w-[78%] sm:max-w-[70%] min-w-0",
+                          mine ? "text-right" : "text-left",
+                        ].join(" ")}
+                      >
                         <div
                           className={[
                             "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border min-w-0",
@@ -651,7 +653,9 @@ export default function TranscriptPanel({
             <button
               onClick={runSummarize}
               disabled={!canSummarize || summaryLoading}
-              title={!canSummarize ? "Load a transcript first" : summaryLoading ? "Summarizing…" : "Summarize (generate + switch)"}
+              title={
+                !canSummarize ? "Load a transcript first" : summaryLoading ? "Summarizing…" : "Summarize (generate + switch)"
+              }
               className={[
                 "absolute bottom-3 right-3 rounded-full border shadow-sm",
                 "h-11 w-11 flex items-center justify-center",

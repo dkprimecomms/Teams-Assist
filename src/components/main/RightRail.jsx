@@ -37,7 +37,6 @@ export default function RightRail({ selected }) {
   const photoUrlByEmail = useParticipantPhotos(participants, API_BASE_URL);
 
   const status = selected?.status || "";
-  const isCompleted = status === "completed";
   const showNewLayout = status === "upcoming" || status === "skipped";
 
   return (
@@ -57,34 +56,32 @@ export default function RightRail({ selected }) {
         }
         subtitle={showNewLayout ? "" : "People invited to the selected meeting."}
       >
+        {/* scroll inside card body */}
         <div className="min-h-0 h-full overflow-auto pr-1">
           {!selected ? (
             <div className="text-sm text-slate-500">Select a meeting to see participants.</div>
           ) : !participants.length ? (
             <div className="text-sm text-slate-500">No participants returned for this meeting.</div>
           ) : showNewLayout ? (
-            // ✅ NEW UI (Upcoming + Skipped) — like your image
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            // ✅ NEW UI (Upcoming + Skipped): ONE container only, NO nested participant boxes
+            <div className="">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 {participants.map((p) => {
                   const email = (p.email || "").toLowerCase();
                   const photo = photoUrlByEmail[email];
 
                   return (
-                    <div
-                      key={`${email}-${p.role}`}
-                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
-                    >
+                    <div key={`${email}-${p.role}`} className="flex items-center gap-3 min-w-0">
                       {/* Avatar */}
                       <div className="relative shrink-0">
                         {photo ? (
                           <img
                             src={photo}
                             alt={p.name || p.email}
-                            className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                            className="h-12 w-12 rounded-full object-cover border border-slate-200"
                           />
                         ) : (
-                          <div className="h-10 w-10 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
+                          <div className="h-12 w-12 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center font-semibold text-slate-700">
                             {initials(p.name || p.email)}
                           </div>
                         )}
@@ -99,7 +96,7 @@ export default function RightRail({ selected }) {
                         />
                       </div>
 
-                      {/* Name + role (like image) */}
+                      {/* Name + role */}
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-900 truncate">
                           {p.name || "(no name)"}
@@ -112,7 +109,7 @@ export default function RightRail({ selected }) {
               </div>
             </div>
           ) : (
-            // ✅ OLD UI (Completed) — keep EXACT style you already had
+            // ✅ OLD UI (Completed): keep your original list cards
             <ul className="space-y-2">
               {participants.map((p) => {
                 const email = (p.email || "").toLowerCase();
