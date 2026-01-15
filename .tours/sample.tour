@@ -1,0 +1,17 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Sample",
+  "steps": [
+    {
+      "file": "src/App.jsx",
+      "description": "Main File",
+      "line": 259
+    },
+    {
+      "file": "src/App.jsx",
+      "description": "Meeting Structure",
+      "line": 225
+    }
+  ],
+  "ref": "main"
+}

@@ -299,24 +299,18 @@ function MeetingDetails({ selected, participantsCount }) {
     const base =
       "inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-semibold border";
     switch (label) {
-      case "Organizer":
-        return [base, "bg-green-300 border-green-300 text-green-700"].join(" ");
-      case "Participants":
-        return [base, "bg-pink-300 border-pink-300 text-pink-700"].join(" ");
-      case "Status":
-        return [base, "bg-violet-300 border-violet-300 text-violet-700"].join(" ");
-      case "Provider":
-        return [base, "bg-orange-300 border-orange-300 text-orange-700"].join(" ");
-      case "Location":
-        return [base, "bg-sky-300 border-sky-300 text-sky-700"].join(" ");
       case "Subject":
-        return [base, "bg-yellow-300 border-yellow-300 text-yellow-700"].join(" ");
+        return [base, "bg-gradient-to-r from-[#753BBD] to-[#572C8C] border-white text-white"].join(" ");
+      case "Organizer":
+        return [base, "bg-gradient-to-r from-[#147BD1] to-[#0E5895] border-white text-white"].join(" "); 
+      case "Participants":
+        return [base, "bg-gradient-to-r from-[#2DC84D] to-[#1E8533] border-white text-white"].join(" ");
       case "Duration":
-        return [base, "bg-teal-300 border-teal-300 text-teal-700"].join(" ");
+        return [base, "bg-gradient-to-r from-[#EBDC0A] to-[#D7CA09] border-white text-white"].join(" ");
       case "Recurrence":
-        return [base, "bg-[#c7bab1] border-[#c7bab1] text-[#47403b]"].join(" ");
+        return [base, "bg-gradient-to-r from-[#FF7F41] to-[#F55200] border-white text-white"].join(" ");
       case "Description":
-        return [base, "bg-[#a3ccf4] border-[#a3ccf4] text-[#47403b]"].join(" ");
+        return [base, "bg-gradient-to-r from-[#E03C31] to-[#B1251B] border-white text-white"].join(" ");
       default:
         return [base, "bg-slate-300 border-slate-300 text-slate-700"].join(" ");
     }

@@ -210,11 +210,13 @@ export default function App() {
   return (
     <div className="h-screen w-full bg-slate-50 overflow-hidden">
       {/* Mobile overlay for sidebar */}
+      
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Mobile sidebar drawer */}
+      
       <div
         className={[
           "fixed z-50 inset-y-0 left-0 w-[320px] bg-white md:hidden",
