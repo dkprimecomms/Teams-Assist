@@ -208,7 +208,7 @@ export default function App() {
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-<div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#f6cfbe] via-[#c9def4] to-[#89d3f5]">
+<div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#cacff9] via-[#cacff9] to-[#a4e9f9]">
 
       {/* Mobile overlay for sidebar */}
       
