@@ -369,6 +369,22 @@ function MeetingDetails({ selected, participantsCount }) {
   );
 }
 
+function NoTranscriptAnimation() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3">
+      {/* animated circle */}
+      <div className="h-12 w-12 rounded-full border-4 border-slate-300 border-t-[#00A4EF] animate-spin" />
+
+      <div className="text-sm font-medium">
+        No transcript available
+      </div>
+      <div className="text-xs text-slate-400">
+        This meeting does not have a transcript
+      </div>
+    </div>
+  );
+}
+
 
 export default function TranscriptPanel({
   selected,
@@ -602,7 +618,7 @@ export default function TranscriptPanel({
             ) : transcriptText.startsWith("Transcript load failed") ? (
               <div className="text-sm text-rose-700">{transcriptText}</div>
             ) : messages.length === 0 ? (
-              <div className="text-sm text-slate-600">No transcript loaded.</div>
+                <NoTranscriptAnimation />
             ) : (
               <div className="space-y-3 min-w-0">
                 {messages.map((msg, idx) => {
