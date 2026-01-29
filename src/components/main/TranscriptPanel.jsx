@@ -36,7 +36,10 @@ function initials(nameOrEmail) {
 }
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 /** ✅ Grouped participants icons for tablet (md+) but hidden on xl+ (desktop right rail) */
 function ParticipantsGroup({ participants = [] }) {
   const items = participants.slice(0, 6);
