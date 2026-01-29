@@ -371,25 +371,115 @@ function MeetingDetails({ selected, participantsCount }) {
 
 function NoTranscriptAnimation() {
   return (
-    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3">
-      {/* animated circle */}
-      <div className="h-12 w-12 rounded-full border-4 border-slate-300 border-t-[#00A4EF] animate-spin" />
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-4">
+      {/* document with slash */}
+      <div className="relative">
+        {/* document */}
+        <div className="h-14 w-12 rounded-lg border-2 border-slate-300 bg-white flex items-center justify-center">
+          <div className="space-y-1">
+            <div className="h-1.5 w-6 bg-slate-300 rounded" />
+            <div className="h-1.5 w-5 bg-slate-300 rounded" />
+            <div className="h-1.5 w-4 bg-slate-300 rounded" />
+          </div>
+        </div>
 
-      <div className="text-sm font-medium">
+        {/* slash */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="h-16 w-0.5 bg-rose-400 rotate-45" />
+        </div>
+
+        {/* subtle pulse */}
+        <span className="absolute inset-0 rounded-lg animate-pulse bg-slate-200/30" />
+      </div>
+
+      {/* text */}
+      <div className="text-sm font-medium text-slate-600">
         No transcript available
       </div>
-      <div className="text-xs text-slate-400">
-        This meeting does not have a transcript
+
+      <div className="text-xs text-slate-400 max-w-[220px]">
+        This meeting was completed without a transcript
       </div>
     </div>
   );
 }
-function TranscriptLoadingAnimation() {
+
+function TranscriptErrorAnimation({ message }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3">
-      <div className="h-12 w-12 rounded-full border-4 border-slate-300 border-t-[#00A4EF] animate-spin" />
-      <div className="text-sm font-medium">Loading transcript…</div>
-      <div className="text-xs text-slate-400">Please wait</div>
+    <div className="h-full flex flex-col items-center justify-center text-center text-rose-700 gap-3 p-4">
+      {/* Inline style for a small shake animation */}
+      <style>{`
+        @keyframes _errShake {
+          0% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+          100% { transform: translateX(0); }
+        }
+      `}</style>
+
+      {/* broken document */}
+      <div className="relative">
+        <div
+          className="h-16 w-12 rounded-lg border-2 border-rose-300 bg-white flex items-center justify-center"
+          style={{ animation: " _errShake 900ms ease-in-out" }}
+          aria-hidden
+        >
+          <div className="space-y-1">
+            <div className="h-2 w-6 bg-rose-200 rounded" />
+            <div className="h-2 w-5 bg-rose-200 rounded" />
+            <div className="h-2 w-4 bg-rose-200 rounded" />
+          </div>
+        </div>
+
+        {/* red X */}
+        <div className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-rose-600 text-white flex items-center justify-center font-semibold shadow-sm">
+          ✕
+        </div>
+
+        {/* subtle glow */}
+        <span className="absolute inset-0 rounded-lg bg-rose-600/10 pointer-events-none" />
+      </div>
+
+      <div className="text-sm font-semibold">Transcript failed to load</div>
+      {message ? <div className="text-xs text-rose-500 max-w-[280px]">{message}</div> : null}
+
+      <div className="text-xs text-slate-400">
+        Try again or check your connection. If it persists, contact support.
+      </div>
+    </div>
+  );
+}
+
+function TranscriptSearchingAnimation() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-4">
+      {/* document icon */}
+      <div className="relative">
+        <div className="h-14 w-12 rounded-lg border-2 border-slate-300 bg-white flex items-center justify-center">
+          <div className="space-y-1">
+            <div className="h-1.5 w-6 bg-slate-300 rounded" />
+            <div className="h-1.5 w-5 bg-slate-300 rounded" />
+            <div className="h-1.5 w-4 bg-slate-300 rounded" />
+          </div>
+        </div>
+
+        {/* pulse ring */}
+        <span className="absolute inset-0 rounded-lg animate-ping bg-[#00A4EF]/20" />
+      </div>
+
+      {/* text */}
+      <div className="text-sm font-medium">
+        Checking for transcript
+      </div>
+
+      {/* animated dots */}
+      <div className="flex gap-1 text-[#00A4EF]">
+        <span className="animate-bounce [animation-delay:0ms]">•</span>
+        <span className="animate-bounce [animation-delay:150ms]">•</span>
+        <span className="animate-bounce [animation-delay:300ms]">•</span>
+      </div>
     </div>
   );
 }
@@ -624,9 +714,9 @@ export default function TranscriptPanel({
             ) : tab === "summary" ? (
               <SummaryView summaryLoading={summaryLoading} summaryError={summaryError} summaryValue={summaryValue} />
             ) : transcriptText.startsWith("Loading") ? (
-              <TranscriptLoadingAnimation />
+              <TranscriptSearchingAnimation />
             ) : transcriptText.startsWith("Transcript load failed") ? (
-              <div className="text-sm text-rose-700">{transcriptText}</div>
+              <TranscriptErrorAnimation message={transcriptText} />
             ) : messages.length === 0 ? (
                 <NoTranscriptAnimation />
             ) : (

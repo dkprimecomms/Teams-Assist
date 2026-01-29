@@ -5,15 +5,23 @@ import { mockTranscriptByMeetingId } from "../mocks/mockData";
 
 const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true";
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 export async function fetchTranscript(joinWebUrlOrMeetingId) {
-  // ✅ MOCK MODE: key is meetingId
   if (USE_MOCKS) {
-    // IMPORTANT: If transcript is not available, return EMPTY STRING
-    // so TranscriptPanel will show your "No transcript available" animation.
+    // ⏳ keep delay so loading animation shows
+    await delay(1500);
+
+    // ❌ FORCE ERROR for testing (pick one meeting)
+    if (joinWebUrlOrMeetingId === "completed-3") {
+      throw new Error("Mock transcript fetch failed");
+    }
+
     return mockTranscriptByMeetingId?.[joinWebUrlOrMeetingId] || "";
   }
 
-  // ✅ REAL BACKEND MODE: expects joinWebUrl
+  // real backend mode
   const token = await getTeamsToken();
   const { res, data } = await postJson("/graph/transcript", {
     token,
