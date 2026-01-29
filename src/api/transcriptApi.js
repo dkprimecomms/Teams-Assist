@@ -8,18 +8,22 @@ const USE_MOCKS = String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true
 export async function fetchTranscript(joinWebUrlOrMeetingId) {
   // ✅ MOCK MODE: key is meetingId
   if (USE_MOCKS) {
-    return (
-      mockTranscriptByMeetingId?.[joinWebUrlOrMeetingId] ||
-      "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n(no transcript)\n"
-    );
+    // IMPORTANT: If transcript is not available, return EMPTY STRING
+    // so TranscriptPanel will show your "No transcript available" animation.
+    return mockTranscriptByMeetingId?.[joinWebUrlOrMeetingId] || "";
   }
 
   // ✅ REAL BACKEND MODE: expects joinWebUrl
   const token = await getTeamsToken();
-  const { res, data } = await postJson("/graph/transcript", { token, joinWebUrl: joinWebUrlOrMeetingId });
+  const { res, data } = await postJson("/graph/transcript", {
+    token,
+    joinWebUrl: joinWebUrlOrMeetingId,
+  });
 
   if (!res.ok || !data.ok) {
-    throw new Error(data?.error || data?.detail || `Transcript fetch failed (${res.status})`);
+    throw new Error(
+      data?.error || data?.detail || `Transcript fetch failed (${res.status})`
+    );
   }
 
   return data.vtt || "";

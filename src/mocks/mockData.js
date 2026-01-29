@@ -1,5 +1,3 @@
-// src/mocks/mockData.js
-
 function hoursAgo(h) {
   return new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 }
@@ -12,8 +10,8 @@ function hoursFromNow(h) {
 // MEETINGS
 // -----------------------------
 export const mockMeetings = [
-  // ===== 30 COMPLETED =====
-  ...Array.from({ length: 30 }).map((_, i) => ({
+  // ===== COMPLETED =====
+  ...Array.from({ length: 10 }).map((_, i) => ({
     id: `completed-${i + 1}`,
     title: `Completed Meeting ${i + 1}`,
     status: "completed",
@@ -22,26 +20,30 @@ export const mockMeetings = [
     joinWebUrl: `https://teams.microsoft.com/l/meetup-join/COMPLETED-${i + 1}`,
     onlineProvider: "teamsForBusiness",
     summary: `Summary for completed meeting ${i + 1}.`,
+
+    // 👇 IMPORTANT:
+    // completed-1 and completed-2 will have NO transcript
+    noTranscript: i < 2,
   })),
 
-  // ===== 15 UPCOMING =====
-  ...Array.from({ length: 15 }).map((_, i) => ({
+  // ===== UPCOMING =====
+  ...Array.from({ length: 5 }).map((_, i) => ({
     id: `upcoming-${i + 1}`,
     title: `Upcoming Meeting ${i + 1}`,
     status: "upcoming",
     startUTC: hoursFromNow(1 + i),
-    endUTC: hoursFromNow(3 + i),
+    endUTC: hoursFromNow(2 + i),
     joinWebUrl: `https://teams.microsoft.com/l/meetup-join/UPCOMING-${i + 1}`,
     onlineProvider: "teamsForBusiness",
     summary: "",
     recurrence: {
-  pattern: { type: "weekly", interval: 1, daysOfWeek: ["monday"] },
-  range: { type: "noEnd", startDate: "2026-01-01" }
-},
+      pattern: { type: "weekly", interval: 1, daysOfWeek: ["monday"] },
+      range: { type: "noEnd", startDate: "2026-01-01" },
+    },
   })),
 
-  // ===== 6 SKIPPED =====
-  ...Array.from({ length: 6 }).map((_, i) => ({
+  // ===== SKIPPED =====
+  ...Array.from({ length: 3 }).map((_, i) => ({
     id: `skipped-${i + 1}`,
     title: `Skipped Meeting ${i + 1}`,
     status: "skipped",
@@ -78,32 +80,16 @@ export const mockParticipantsByMeetingId = Object.fromEntries(
         role: "optional",
         response: "tentativelyAccepted",
       },
-      {
-        name: "Kanishk S R",
-        email: "kanishka@primecomms.com",
-        role: "optional",
-        response: "notResponded",
-      },
-      {
-        name: "Harismithra D",
-        email: "harismithra@primecomms.com",
-        role: "optional",
-        response: "tentativelyAccepted",
-      },
     ],
   ])
 );
-export const mockMeetingsWithParticipants = mockMeetings.map((m) => ({
-  ...m,
-  participants: mockParticipantsByMeetingId[m.id] || [],
-}));
 
 // -----------------------------
-// TRANSCRIPTS (only for completed)
+// TRANSCRIPTS (ONLY for completed that HAVE transcript)
 // -----------------------------
 export const mockTranscriptByMeetingId = Object.fromEntries(
   mockMeetings
-    .filter((m) => m.status === "completed")
+    .filter((m) => m.status === "completed" && !m.noTranscript)
     .map((m) => [
       m.id,
       `WEBVTT
@@ -119,73 +105,6 @@ Asha: No blockers from my side.
 
 00:00:20.000 --> 00:00:28.000
 Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-00:00:00.000 --> 00:00:05.000
-Organizer: Welcome to ${m.title}.
-
-00:00:05.000 --> 00:00:12.000
-Dheepan: Progress update looks good.
-
-00:00:12.000 --> 00:00:20.000
-Asha: No blockers from my side.
-
-00:00:20.000 --> 00:00:28.000
-Rahul: Action items recorded.
-
 `,
     ])
 );

@@ -384,6 +384,16 @@ function NoTranscriptAnimation() {
     </div>
   );
 }
+function TranscriptLoadingAnimation() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3">
+      <div className="h-12 w-12 rounded-full border-4 border-slate-300 border-t-[#00A4EF] animate-spin" />
+      <div className="text-sm font-medium">Loading transcript…</div>
+      <div className="text-xs text-slate-400">Please wait</div>
+    </div>
+  );
+}
+
 
 
 export default function TranscriptPanel({
@@ -614,7 +624,7 @@ export default function TranscriptPanel({
             ) : tab === "summary" ? (
               <SummaryView summaryLoading={summaryLoading} summaryError={summaryError} summaryValue={summaryValue} />
             ) : transcriptText.startsWith("Loading") ? (
-              <div className="text-sm text-slate-600">{transcriptText}</div>
+              <TranscriptLoadingAnimation />
             ) : transcriptText.startsWith("Transcript load failed") ? (
               <div className="text-sm text-rose-700">{transcriptText}</div>
             ) : messages.length === 0 ? (
