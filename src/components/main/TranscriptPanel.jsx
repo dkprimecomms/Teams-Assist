@@ -35,6 +35,55 @@ function initials(nameOrEmail) {
   return (a + b).toUpperCase();
 }
 
+<<<<<<< Updated upstream
+=======
+/** ✅ Grouped participants icons for tablet (md+) but hidden on xl+ (desktop right rail) */
+function ParticipantsGroup({ participants = [] }) {
+  const items = participants.slice(0, 6);
+  const extra = participants.length - items.length;
+  if (!participants.length) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-2">
+        {items.map((p) => (
+          <div
+            key={(p.email || p.name) + (p.role || "")}
+            className="h-7 w-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-700"
+            title={p.name || p.email}
+          >
+            {initials(p.name || p.email)}
+          </div>
+        ))}
+      </div>
+      {extra > 0 && <span className="text-xs text-slate-600">+{extra}</span>}
+    </div>
+  );
+}
+
+function decodeHtml(s) {
+  return String(s || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+function stripTags(s) {
+  return String(s || "").replace(/<\/?[^>]+>/g, "").trim();
+}
+
+// "00:01:23.201" -> "01:23"
+function formatVttTimestamp(hmsMs) {
+  const s = String(hmsMs || "").trim();
+  const m = s.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+  if (!m) return "";
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ss = Number(m[3]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return "";
+  const totalMinutes = hh * 60 + mm;
+  const mm2 = String(totalMinutes).padStart(2, "0");
+  const ss2 = String(ss).padStart(2, "0");
+  return `${mm2}:${ss2}`;
+}
+
+>>>>>>> Stashed changes
 function parseVttToMessages(vtt) {
   const raw = String(vtt || "");
   if (!raw.trim()) return [];
@@ -484,6 +533,7 @@ export default function TranscriptPanel({
     );
   }
 
+<<<<<<< Updated upstream
   async function runSummarize() {
     if (!canSummarize || !selected) return;
 
@@ -491,6 +541,15 @@ export default function TranscriptPanel({
       setTab("summary");
       return;
     }
+=======
+  async function ensureSummary() {
+    if (String(import.meta.env.VITE_USE_MOCKS).toLowerCase() === "true") {
+      return; // mock summary already available
+    }
+    if (!selected || !isCompleted) return;
+    if (!canSummarize) return;
+    if (selected.summaryObj) return;
+>>>>>>> Stashed changes
 
     setSummaryLoading(true);
     setSummaryError("");
@@ -507,10 +566,204 @@ export default function TranscriptPanel({
     }
   }
 
+<<<<<<< Updated upstream
   const headerTitle = (
     <div className="w-full min-w-0">
       <div className="flex items-start justify-between gap-3 w-full min-w-0">
         <div className="flex items-start gap-3 flex-1 min-w-0">
+=======
+  async function onSummarizeClick() {
+    if (!canSummarize) return;
+    setTab("summary");
+    await ensureSummary();
+  }
+
+  const summaryObj = selected?.summaryObj || null;
+
+  return (
+    <Card
+      className="h-full w-full"
+      bodyClassName="min-h-0"
+      title={
+        selected ? (
+          <div className="flex items-start justify-between gap-3 w-full">
+            {/* ✅ LEFT: meeting details + responsive participants (tablet) */}
+            <div className="flex items-start gap-2 min-w-0 flex-1">
+              {/* ✅ Meetings drawer button (mobile/tablet) */}
+              <button
+                type="button"
+                onClick={onOpenSidebar}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Meetings"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+
+              {/* ✅ Participants button (mobile/tablet) */}
+              <button
+                type="button"
+                onClick={() => setParticipantsOpen(true)}
+                className="xl:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+                title="Participants"
+              >
+                <ParticipantsIcon />
+              </button>
+
+              {/* ✅ Tablet (md+) grouped icons, hidden on xl+ where right rail exists */}
+              <div
+                className="hidden md:flex xl:hidden items-center"
+                role="button"
+                tabIndex={0}
+                onClick={() => setParticipantsOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") setParticipantsOpen(true);
+                }}
+                title="View participants"
+              >
+                <ParticipantsGroup participants={participants} />
+              </div>
+
+              {/* ✅ Meeting title/when */}
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900 truncate">{selected.title || "(no subject)"}</div>
+                <div className="mt-0.5 text-xs text-slate-500 truncate">{selected.when || ""}</div>
+              </div>
+            </div>
+
+            {/* ✅ RIGHT: toggle (never shrinks/clips) */}
+            {isCompleted ? (
+              <div className="shrink-0">
+                <SegmentedToggle
+                  value={tab}
+                  onChange={async (next) => {
+                    setTab(next);
+                    if (next === "summary") await ensureSummary();
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="w-full flex items-center justify-between">
+            <span>Meeting Details</span>
+          </div>
+        )
+      }
+    >
+      <div className="relative rounded-xl bg-white h-full min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto p-3 bg-white">
+          {!selected ? (
+            <div className="text-sm text-slate-600">Select a meeting.</div>
+          ) : !isCompleted ? (
+            <div className="text-sm text-slate-600">No transcript for upcoming/skipped meetings.</div>
+          ) : tab === "summary" ? (
+            <>
+              {summaryLoading ? (
+                <div className="text-sm text-slate-600">Generating summary…</div>
+              ) : summaryError ? (
+                <div className="text-sm text-rose-700">Summary failed: {summaryError}</div>
+              ) : summaryObj ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-1">Purpose</div>
+                    <div className="text-sm text-slate-900 whitespace-pre-wrap">{summaryObj.purpose || "—"}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Takeaways</div>
+                    {summaryObj.takeaways?.length ? (
+                      <ul className="list-disc pl-5 text-sm text-slate-900 space-y-1">
+                        {summaryObj.takeaways.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-sm text-slate-600">—</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Detailed summary</div>
+                    <div className="text-sm text-slate-900 whitespace-pre-wrap">
+                      {summaryObj.detailedSummary || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm md:text-base font-semibold text-[#00A4EF] mb-2">Action items</div>
+                    {summaryObj.actionItems?.length ? (
+                      <div className="space-y-2">
+                        {summaryObj.actionItems.map((a, i) => (
+                          <div
+                            key={i}
+                            className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 shadow-sm hover:shadow-md transition-shadow"
+                          >
+                            <div className="text-sm text-slate-900 font-medium">{a.task || "—"}</div>
+                            <div className="text-xs text-slate-600 mt-1">
+                              Owner: {a.owner ?? "—"} <span className="text-slate-300">•</span> Due:{" "}
+                              {a.dueDate ?? "—"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-600">No follow-up tasks found.</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-600">No summary yet. Click Summary to generate.</div>
+              )}
+            </>
+          ) : transcriptText.startsWith("Loading") ? (
+            <div className="text-sm text-slate-600">{transcriptText}</div>
+          ) : transcriptText.startsWith("Transcript load failed") ? (
+            <div className="text-sm text-rose-700">{transcriptText}</div>
+          ) : messages.length === 0 ? (
+            <div className="text-sm text-slate-600">No transcript loaded.</div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((msg, idx) => {
+                const mine = isMineMessage(msg, participants, meEmail);
+                const p = findParticipantForSpeaker(msg.speaker, participants);
+
+                return (
+                  <div
+                    key={`${idx}-${msg.speaker}`}
+                    className={["flex items-end gap-2", mine ? "justify-end" : "justify-start"].join(" ")}
+                  >
+                    {!mine && <div className="shrink-0">{avatarNode(p, msg.speaker)}</div>}
+
+                    <div className={["max-w-[78%] sm:max-w-[70%]", mine ? "text-right" : "text-left"].join(" ")}>
+                      <div
+                        className={[
+                          "rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm border",
+                          mine
+                            ? "bg-[#00A4EF] text-white border-[#00A4EF]"
+                            : "bg-slate-50 text-slate-900 border-slate-200",
+                        ].join(" ")}
+                      >
+                        {!mine && <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>}
+                        <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                        {msg.time ? (
+                          <div className={["mt-1 text-[11px]", mine ? "text-white/80" : "text-slate-400"].join(" ")}>
+                            {msg.time}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {mine && <div className="shrink-0">{avatarNode(p, "Me")}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {isCompleted && tab === "transcript" && (
+>>>>>>> Stashed changes
           <button
             type="button"
             onClick={onOpenSidebar}
