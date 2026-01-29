@@ -445,9 +445,6 @@ function TranscriptErrorAnimation({ message }) {
       <div className="text-sm font-semibold">Transcript failed to load</div>
       {message ? <div className="text-xs text-rose-500 max-w-[280px]">{message}</div> : null}
 
-      <div className="text-xs text-slate-400">
-        Try again or check your connection. If it persists, contact support.
-      </div>
     </div>
   );
 }
