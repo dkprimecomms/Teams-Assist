@@ -7,7 +7,13 @@ import { fetchSummaryForMeeting } from "../../api/summaryApi";
 
 function SummarizeIcon({ className = "" }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M4 6h16" />
       <path d="M4 12h10" />
       <path d="M4 18h16" />
@@ -18,7 +24,13 @@ function SummarizeIcon({ className = "" }) {
 
 function MenuIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M4 6h16" />
       <path d="M4 12h16" />
       <path d="M4 18h16" />
@@ -189,7 +201,9 @@ function ParticipantsGroup({ participants = [], photoUrlByEmail = {} }) {
               {photo ? (
                 <img src={photo} alt={p.name || p.email} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-[10px] font-semibold text-slate-700">{initials(p.name || p.email)}</span>
+                <span className="text-[10px] font-semibold text-slate-700">
+                  {initials(p.name || p.email)}
+                </span>
               )}
             </div>
           );
@@ -257,6 +271,12 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
   );
 }
 
+/**
+ * MeetingDetails:
+ * - Uses ONLY the existing meeting data (subject/organizer/participants/duration/recurrence/location/description)
+ * - Shows them as “boxes” (cards)
+ * - Uses a responsive grid so the UI looks clearly different and more professional
+ */
 function MeetingDetails({ selected, participantsCount }) {
   const raw = selected?.raw || {};
   const organizerName = raw?.organizer?.emailAddress?.name || selected?.organizer?.name || "";
@@ -286,7 +306,6 @@ function MeetingDetails({ selected, participantsCount }) {
     const days = (r?.pattern?.daysOfWeek || []).join(", ");
     const rangeType = r?.range?.type || "";
     const endDate = r?.range?.endDate || "";
-
     let base = type ? `${type}` : "recurring";
     if (interval > 1) base += ` (every ${interval})`;
     if (days) base += ` • ${days}`;
@@ -294,66 +313,60 @@ function MeetingDetails({ selected, participantsCount }) {
     return base;
   })();
 
-  // ✅ colorful label pills
-  const labelPillClass = () =>
-  "text-[12px] uppercase tracking-wide text-slate-500 font-semibold";
+  const cleanDescription = description ? stripHtml(description).trim() : "";
 
-
-const Row = ({ label, children, last = false }) => (
-  <div
-    className={[
-      "py-3",
-      !last ? "border-b border-white/30" : "",
-    ].join(" ")}
-  >
-      {/* ✅ tighter spacing between label and value */}
-      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-4 items-start">
-        <div className="min-w-0">
-          <span className={labelPillClass(label)}>{label}</span>
+  function FieldBox({ title, children, className = "" }) {
+    return (
+      <div
+        className={[
+          "rounded-2xl border border-white/25 bg-white/14 shadow-sm",
+          "backdrop-blur-md",
+          "p-4",
+          className,
+        ].join(" ")}
+      >
+        <div className="text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
+          {title}
         </div>
-        <div className="min-w-0 pt-[1px]">{children}</div>
+        <div className="mt-2 text-sm text-slate-800 leading-relaxed break-words">
+          {children}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
-    <div className="overflow-hidden min-w-0">
-      <div className="p-2 min-w-0">
-        <Row label="Subject">
-          <div className="text-sm text-slate-800 leading-relaxed">
-
+    <div className="min-w-0 h-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-auto p-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FieldBox title="Subject" className="md:col-span-2">
             {subject || "(none)"}
-          </div>
-        </Row>
+          </FieldBox>
 
-        <Row label="Organizer">
-          <div className="text-sm text-slate-800 leading-relaxed">
+          <FieldBox title="Organizer">
+            <div>
+              <div className="font-semibold">{organizerName || "(unknown)"}</div>
+              {organizerEmail ? (
+                <div className="text-slate-600 text-sm mt-1">{organizerEmail}</div>
+              ) : null}
+            </div>
+          </FieldBox>
 
-            {organizerName || "(unknown)"}{" "}
-            {organizerEmail ? <span className="text-slate-500">• {organizerEmail}</span> : null}
-          </div>
-        </Row>
+          <FieldBox title="Participants">
+            {typeof participantsCount === "number"
+              ? participantsCount
+              : selected?.participants?.length || 0}
+          </FieldBox>
 
-        {/* ✅ Participants count row */}
-        <Row label="Participants">
-          <div className="text-sm text-slate-900 leading-snug">
-            {typeof participantsCount === "number" ? participantsCount : selected?.participants?.length || 0}
-          </div>
-        </Row>
+          <FieldBox title="Duration">{durationText}</FieldBox>
 
-        <Row label="Duration">
-          <div className="text-sm text-slate-900 leading-snug">{durationText}</div>
-        </Row>
+          <FieldBox title="Recurrence">{recurrenceText}</FieldBox>
 
-        <Row label="Recurrence">
-          <div className="text-sm text-slate-900 break-words leading-snug">{recurrenceText}</div>
-        </Row>
 
-        <Row label="Description" last>
-          <div className="text-sm text-slate-700 whitespace-pre-wrap break-words min-w-0 leading-snug">
-            {description ? stripHtml(description).trim() : "(no description)"}
-          </div>
-        </Row>
+          <FieldBox title="Description" className="md:col-span-2">
+            {cleanDescription || "(no description)"}
+          </FieldBox>
+        </div>
       </div>
     </div>
   );
@@ -362,9 +375,7 @@ const Row = ({ label, children, last = false }) => (
 function NoTranscriptAnimation() {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-4">
-      {/* document with slash */}
       <div className="relative">
-        {/* document */}
         <div className="h-14 w-12 rounded-lg border-2 border-slate-300 bg-white flex items-center justify-center">
           <div className="space-y-1">
             <div className="h-1.5 w-6 bg-slate-300 rounded" />
@@ -373,19 +384,14 @@ function NoTranscriptAnimation() {
           </div>
         </div>
 
-        {/* slash */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="h-16 w-0.5 bg-rose-400 rotate-45" />
         </div>
 
-        {/* subtle pulse */}
         <span className="absolute inset-0 rounded-lg animate-pulse bg-slate-200/30" />
       </div>
 
-      {/* text */}
-      <div className="text-sm font-medium text-slate-600">
-        No transcript available
-      </div>
+      <div className="text-sm font-medium text-slate-600">No transcript available</div>
 
       <div className="text-xs text-slate-400 max-w-[220px]">
         This meeting was completed without a transcript
@@ -397,7 +403,6 @@ function NoTranscriptAnimation() {
 function TranscriptErrorAnimation({ message }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center text-rose-700 gap-3 p-4">
-      {/* Inline style for a small shake animation */}
       <style>{`
         @keyframes _errShake {
           0% { transform: translateX(0); }
@@ -409,7 +414,6 @@ function TranscriptErrorAnimation({ message }) {
         }
       `}</style>
 
-      {/* broken document */}
       <div className="relative">
         <div
           className="h-16 w-12 rounded-lg border-2 border-rose-300 bg-white flex items-center justify-center"
@@ -423,18 +427,15 @@ function TranscriptErrorAnimation({ message }) {
           </div>
         </div>
 
-        {/* red X */}
         <div className="absolute -top-2 -right-2 h-7 w-7 rounded-full bg-rose-600 text-white flex items-center justify-center font-semibold shadow-sm">
           ✕
         </div>
 
-        {/* subtle glow */}
         <span className="absolute inset-0 rounded-lg bg-rose-600/10 pointer-events-none" />
       </div>
 
       <div className="text-sm font-semibold">Transcript failed to load</div>
       {message ? <div className="text-xs text-rose-500 max-w-[280px]">{message}</div> : null}
-
     </div>
   );
 }
@@ -442,7 +443,6 @@ function TranscriptErrorAnimation({ message }) {
 function TranscriptSearchingAnimation() {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-4">
-      {/* document icon */}
       <div className="relative">
         <div className="h-14 w-12 rounded-lg border-2 border-slate-300 bg-white flex items-center justify-center">
           <div className="space-y-1">
@@ -452,16 +452,11 @@ function TranscriptSearchingAnimation() {
           </div>
         </div>
 
-        {/* pulse ring */}
         <span className="absolute inset-0 rounded-lg animate-ping bg-[#00A4EF]/20" />
       </div>
 
-      {/* text */}
-      <div className="text-sm font-medium">
-        Checking for transcript
-      </div>
+      <div className="text-sm font-medium">Checking for transcript</div>
 
-      {/* animated dots */}
       <div className="flex gap-1 text-[#00A4EF]">
         <span className="animate-bounce [animation-delay:0ms]">•</span>
         <span className="animate-bounce [animation-delay:150ms]">•</span>
@@ -470,8 +465,6 @@ function TranscriptSearchingAnimation() {
     </div>
   );
 }
-
-
 
 export default function TranscriptPanel({
   selected,
@@ -609,7 +602,9 @@ export default function TranscriptPanel({
 
           {!isUpcomingOrSkipped ? (
             <div className="min-w-0">
-              <div className="font-semibold text-slate-900 truncate">{selected?.title || "Select a meeting"}</div>
+              <div className="font-semibold text-slate-900 truncate">
+                {selected?.title || "Select a meeting"}
+              </div>
               <div className="text-xs text-slate-500 line-clamp-2">{selected?.when || ""}</div>
             </div>
           ) : (
@@ -634,7 +629,6 @@ export default function TranscriptPanel({
             />
           )}
 
-          {/* ✅ Mobile participants icon for ALL meeting statuses (fix missing for completed) */}
           <button
             onClick={onOpenParticipants}
             className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-700"
@@ -689,7 +683,8 @@ export default function TranscriptPanel({
   return (
     <Card className="h-full w-full min-w-0" bodyClassName="min-h-0 min-w-0" title={headerTitle}>
       {isUpcomingOrSkipped ? (
-        <div className="h-full min-h-0 overflow-auto pr-1 min-w-0">
+        // IMPORTANT: no outer overflow-auto (MeetingDetails handles scrolling)
+        <div className="h-full min-h-0 min-w-0 overflow-hidden">
           <MeetingDetails selected={selected} participantsCount={participants.length} />
         </div>
       ) : (
@@ -700,13 +695,17 @@ export default function TranscriptPanel({
             ) : !isCompleted ? (
               <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
             ) : tab === "summary" ? (
-              <SummaryView summaryLoading={summaryLoading} summaryError={summaryError} summaryValue={summaryValue} />
+              <SummaryView
+                summaryLoading={summaryLoading}
+                summaryError={summaryError}
+                summaryValue={summaryValue}
+              />
             ) : transcriptText.startsWith("Loading") ? (
               <TranscriptSearchingAnimation />
             ) : transcriptText.startsWith("Transcript load failed") ? (
               <TranscriptErrorAnimation message={transcriptText} />
             ) : messages.length === 0 ? (
-                <NoTranscriptAnimation />
+              <NoTranscriptAnimation />
             ) : (
               <div className="space-y-3 min-w-0">
                 {messages.map((msg, idx) => {
@@ -716,7 +715,9 @@ export default function TranscriptPanel({
                   return (
                     <div
                       key={`${idx}-${msg.speaker}`}
-                      className={["flex items-end gap-2 min-w-0", mine ? "justify-end" : "justify-start"].join(" ")}
+                      className={["flex items-end gap-2 min-w-0", mine ? "justify-end" : "justify-start"].join(
+                        " "
+                      )}
                     >
                       {!mine && <div className="shrink-0">{avatarForParticipant(p, msg.speaker)}</div>}
 
@@ -734,7 +735,11 @@ export default function TranscriptPanel({
                               : "bg-white text-slate-900 border-slate-200",
                           ].join(" ")}
                         >
-                          {!mine && <div className="text-[11px] font-semibold text-slate-500 mb-1">{msg.speaker}</div>}
+                          {!mine && (
+                            <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                              {msg.speaker}
+                            </div>
+                          )}
                           <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                         </div>
                       </div>
@@ -752,7 +757,11 @@ export default function TranscriptPanel({
               onClick={runSummarize}
               disabled={!canSummarize || summaryLoading}
               title={
-                !canSummarize ? "Load a transcript first" : summaryLoading ? "Summarizing…" : "Summarize (generate + switch)"
+                !canSummarize
+                  ? "Load a transcript first"
+                  : summaryLoading
+                  ? "Summarizing…"
+                  : "Summarize (generate + switch)"
               }
               className={[
                 "absolute bottom-3 right-3 rounded-full border shadow-sm",
