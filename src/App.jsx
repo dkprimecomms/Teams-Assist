@@ -208,15 +208,7 @@ export default function App() {
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-<div
-  className="h-screen w-full overflow-hidden"
-  style={{
-    background:
-      "radial-gradient(1200px 600px at 85% 0%, rgba(196, 181, 253, 0.45), transparent 60%), \
-       radial-gradient(900px 500px at 0% 100%, rgba(147, 197, 253, 0.55), transparent 65%), \
-       linear-gradient(180deg, #eef4ff 0%, #dbeafe 100%)",
-  }}
->
+<div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#53dbf2] via-[#ce9eec] to-[#3a7ff2]">
       {/* Mobile overlay for sidebar */}
       
       {sidebarOpen && (

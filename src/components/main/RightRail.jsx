@@ -48,7 +48,7 @@ export default function RightRail({ selected }) {
         title={
           <div className="flex items-center gap-2">
             <span className="text-base font-semibold text-slate-900">
-              {showNewLayout ? "Project Roles" : "Participants"}
+              {showNewLayout ? "Participants" : "Participants"}
             </span>
             <span className="text-slate-500">
               <ParticipantsIcon />
