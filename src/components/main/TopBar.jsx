@@ -36,7 +36,7 @@ export default function TopBar({ selected, onOpenSidebar }) {
           {/* Mobile: hamburger */}
           <button
             onClick={onOpenSidebar}
-            className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700"
+            className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-full glass shadow-md text-slate-700"
             title="Meetings"
           >
             <MenuIcon />

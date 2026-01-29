@@ -208,7 +208,8 @@ export default function App() {
   }, [selectedRaw, participants, transcriptText, transcriptLoading, transcriptError]);
 
   return (
-    <div className="h-screen w-full bg-slate-50 overflow-hidden">
+<div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#c5ebfc] via-[#c0c9fc] to-[#b5c6e0]">
+
       {/* Mobile overlay for sidebar */}
       
       {sidebarOpen && (
@@ -218,11 +219,12 @@ export default function App() {
       {/* Mobile sidebar drawer */}
       
       <div
-        className={[
-          "fixed z-50 inset-y-0 left-0 w-[320px] bg-white md:hidden",
-          "transform transition-transform duration-200 ease-out",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        ].join(" ")}
+          className={[
+    "fixed z-50 inset-y-0 left-0 w-[380px] md:hidden",
+    "glass shadow-2xl",
+    "transform transition-transform duration-200 ease-out",
+    sidebarOpen ? "translate-x-0" : "-translate-x-full",
+  ].join(" ")}
       >
         <MeetingsSidebar
           statusTab={statusTab}
@@ -236,28 +238,28 @@ export default function App() {
         />
       </div>
 
-      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[320px_1fr]">
-        {/* Sidebar (desktop) */}
-        <div className="hidden md:block relative h-full min-h-0 border-r border-slate-200 bg-white">
-          <MeetingsSidebar
-            statusTab={statusTab}
-            setStatusTab={setStatusTab}
-            meetings={meetings}
-            selectedMeetingId={selectedMeetingId}
-            setSelectedMeetingId={setSelectedMeetingId}
-          />
+<div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[380px_1fr]">
+  {/* Sidebar (desktop) */}
+  <div className="hidden md:block relative h-full min-h-0 border-r border-white/40">
+            <MeetingsSidebar
+              statusTab={statusTab}
+              setStatusTab={setStatusTab}
+              meetings={meetings}
+              selectedMeetingId={selectedMeetingId}
+              setSelectedMeetingId={setSelectedMeetingId}
+            />
 
-          {loadingMeetings && (
-            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-              Loading meetings...
-            </div>
-          )}
-          {meetingsError && (
-            <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
-              {meetingsError}
-            </div>
-          )}
-        </div>
+            {loadingMeetings && (
+              <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-slate-200 bg-white/95 p-3 text-sm text-slate-700 shadow-sm">
+                Loading meetings...
+              </div>
+            )}
+            {meetingsError && (
+              <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
+                {meetingsError}
+              </div>
+            )}
+         </div>  
 
         {/* Main */}
         <div className="relative h-full min-h-0 overflow-hidden">

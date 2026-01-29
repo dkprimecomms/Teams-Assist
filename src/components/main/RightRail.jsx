@@ -40,6 +40,7 @@ export default function RightRail({ selected }) {
   const showNewLayout = status === "upcoming" || status === "skipped";
 
   return (
+    <div className="flex flex-col gap-4 min-h-0 w-full pr-3">
     <div className="flex flex-col gap-4 min-h-0 w-full">
       <Card
         className="w-full"
@@ -118,7 +119,7 @@ export default function RightRail({ selected }) {
                 return (
                   <li
                     key={`${email}-${p.role}`}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 flex items-center gap-3"
+                    className="rounded-2xl glass px-3 py-2 text-sm text-slate-800 flex items-center gap-3 shadow-sm"
                   >
                     {/* Avatar */}
                     <div className="relative shrink-0">
@@ -160,6 +161,7 @@ export default function RightRail({ selected }) {
           )}
         </div>
       </Card>
+    </div>
     </div>
   );
 }

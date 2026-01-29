@@ -11,7 +11,7 @@ export default function Card({
   return (
     <section
       className={[
-        "rounded-2xl border border-slate-200 bg-white shadow-sm",
+        "rounded-3xl glass shadow-xl",
         "flex flex-col min-h-0 w-full",
         className,
       ].join(" ")}

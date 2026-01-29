@@ -28,7 +28,7 @@ export default function MeetingsSidebar({
   const translatePct = activeIndex * 100;
 
   return (
-    <aside className="h-full min-h-0 bg-white flex flex-col">
+<aside className="h-full min-h-0 flex flex-col glass">
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-lg font-semibold text-slate-900">Meetings</h1>

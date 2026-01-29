@@ -14,7 +14,7 @@ export default function MainLayout({
   const participants = selected?.participants || [];
 
   return (
-    <main className="h-full min-h-0 p-3 lg:p-5 flex flex-col gap-3 overflow-hidden">
+    <main className="h-full min-h-0 p-3 lg:p-4 flex flex-col gap-3 overflow-hidden">
       <div
         className={[
           "grid grid-cols-1 gap-4 flex-1 min-h-0 overflow-hidden items-stretch",

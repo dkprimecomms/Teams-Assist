@@ -137,9 +137,9 @@ function SegmentedToggle({ value, onChange, disabledSummary }) {
   const isTranscript = value === "transcript";
 
   return (
-    <div className="relative inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+    <div className="relative inline-flex rounded-full glass p-1 shadow-md">
       <span
-        className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-[#00A4EF] transition-transform duration-300 ease-out"
+        className="absolute inset-y-1 w-[calc(50%-4px)] rounded-full bg-[#00A4EF] transition-transform duration-300 ease-out"
         style={{ transform: `translateX(${isTranscript ? "0%" : "100%"})` }}
       />
       <button
@@ -295,31 +295,19 @@ function MeetingDetails({ selected, participantsCount }) {
   })();
 
   // ✅ colorful label pills
-  const labelPillClass = (label) => {
-    const base =
-      "inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-semibold border";
-    switch (label) {
-      case "Subject":
-        return [base, "bg-gradient-to-r from-[#753BBD] to-[#572C8C] border-white text-white"].join(" ");
-      case "Organizer":
-        return [base, "bg-gradient-to-r from-[#147BD1] to-[#0E5895] border-white text-white"].join(" "); 
-      case "Participants":
-        return [base, "bg-gradient-to-r from-[#2DC84D] to-[#1E8533] border-white text-white"].join(" ");
-      case "Duration":
-        return [base, "bg-gradient-to-r from-[#EBDC0A] to-[#D7CA09] border-white text-white"].join(" ");
-      case "Recurrence":
-        return [base, "bg-gradient-to-r from-[#FF7F41] to-[#F55200] border-white text-white"].join(" ");
-      case "Description":
-        return [base, "bg-gradient-to-r from-[#E03C31] to-[#B1251B] border-white text-white"].join(" ");
-      default:
-        return [base, "bg-slate-300 border-slate-300 text-slate-700"].join(" ");
-    }
-  };
+  const labelPillClass = () =>
+  "text-[12px] uppercase tracking-wide text-slate-500 font-semibold";
 
-  const Row = ({ label, children, last = false }) => (
-    <div className={["py-2", !last ? "border-b border-slate-200" : ""].join(" ")}>
+
+const Row = ({ label, children, last = false }) => (
+  <div
+    className={[
+      "py-3",
+      !last ? "border-b border-white/30" : "",
+    ].join(" ")}
+  >
       {/* ✅ tighter spacing between label and value */}
-      <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-2 items-start">
+      <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-4 items-start">
         <div className="min-w-0">
           <span className={labelPillClass(label)}>{label}</span>
         </div>
@@ -329,16 +317,18 @@ function MeetingDetails({ selected, participantsCount }) {
   );
 
   return (
-    <div className="bg-white overflow-hidden min-w-0">
+    <div className="overflow-hidden min-w-0">
       <div className="p-2 min-w-0">
         <Row label="Subject">
-          <div className="text-sm text-slate-900 break-words leading-snug">
+          <div className="text-sm text-slate-800 leading-relaxed">
+
             {subject || "(none)"}
           </div>
         </Row>
 
         <Row label="Organizer">
-          <div className="text-sm text-slate-900 break-words leading-snug">
+          <div className="text-sm text-slate-800 leading-relaxed">
+
             {organizerName || "(unknown)"}{" "}
             {organizerEmail ? <span className="text-slate-500">• {organizerEmail}</span> : null}
           </div>
@@ -667,7 +657,8 @@ export default function TranscriptPanel({
                       "h-8 text-xs rounded-lg w-[92px] sm:w-[104px] md:w-auto",
                       "px-2 sm:px-3 md:px-4 md:h-9 md:text-sm md:rounded-xl",
                       "font-semibold",
-                      "text-white bg-[#6264A7] hover:bg-[#5557A0]",
+                      "text-white bg-[#6264A7]/90 hover:bg-[#4E5FBF]",
+                      "rounded-full shadow-lg backdrop-blur-md",
                       "focus:outline-none focus:ring-2 focus:ring-[#6264A7]/40",
                       "active:translate-y-[1px]",
                     ].join(" ")}
@@ -703,7 +694,7 @@ export default function TranscriptPanel({
         </div>
       ) : (
         <div className="relative h-full min-h-0 min-w-0 overflow-hidden flex flex-col">
-          <div className="flex-1 min-h-0 overflow-auto p-3 bg-white min-w-0">
+          <div className="flex-1 min-h-0 overflow-auto p-3 min-w-0">
             {!selected ? (
               <div className="text-sm text-slate-600">Select a meeting.</div>
             ) : !isCompleted ? (
