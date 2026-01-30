@@ -7,20 +7,17 @@ import { fetchSummaryForMeeting } from "../../api/summaryApi";
 import SummaryPng from "../../assets/summary.png";
 
 
-function SummarizeIcon({ className = "", spinning = false }) {
+function SummarizeIcon({ className = "" }) {
   return (
     <img
       src={SummaryPng}
       alt="Summary"
-      className={[
-        className,
-        spinning ? "animate-spin" : "",
-        "select-none",
-      ].join(" ")}
+      className={["select-none", className].join(" ")}
       draggable="false"
     />
   );
 }
+
 
 
 function MenuIcon() {
@@ -222,12 +219,7 @@ function stripHtml(s) {
 function SummaryView({ summaryLoading, summaryError, summaryValue }) {
   return (
     <div className="text-[13.5px]">
-      {summaryLoading ? (
-        <div className="flex items-center gap-3 text-slate-600">
-          <SummarizeIcon className="h-6 w-6" spinning />
-          <div className="text-[13.5px]">Summarizing…</div>
-        </div>
-      ) : summaryError ? (
+      {summaryError ? (
         <div className="text-rose-700">Summary failed: {summaryError}</div>
       ) : summaryValue ? (
         <div className="space-y-4">
@@ -469,6 +461,58 @@ function TranscriptSearchingAnimation() {
     </div>
   );
 }
+function SummaryLoadingOverlay() {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center">
+      <style>{`
+        @keyframes _sumFloat {
+          0%   { transform: translateY(0px) scale(1); }
+          50%  { transform: translateY(-10px) scale(1.03); }
+          100% { transform: translateY(0px) scale(1); }
+        }
+        @keyframes _sumPulseGlow {
+          0%   { filter: drop-shadow(0 0 0 rgba(0,164,239,0.0)); opacity: 0.9; }
+          50%  { filter: drop-shadow(0 10px 18px rgba(0,164,239,0.35)); opacity: 1; }
+          100% { filter: drop-shadow(0 0 0 rgba(0,164,239,0.0)); opacity: 0.9; }
+        }
+        @keyframes _sumRipple {
+          0%   { transform: scale(0.75); opacity: 0.45; }
+          100% { transform: scale(1.35); opacity: 0; }
+        }
+      `}</style>
+
+      {/* optional soft backdrop, keeps focus without hiding content */}
+      <div className="absolute inset-0 bg-white/35 backdrop-blur-[2px]" />
+
+      <div className="relative flex flex-col items-center gap-3">
+        {/* ripples */}
+        <span
+          className="absolute -inset-10 rounded-full border border-[#00A4EF]/40"
+          style={{ animation: "_sumRipple 1200ms ease-out infinite" }}
+        />
+        <span
+          className="absolute -inset-10 rounded-full border border-[#00A4EF]/30"
+          style={{ animation: "_sumRipple 1200ms ease-out infinite", animationDelay: "250ms" }}
+        />
+        <span
+          className="absolute -inset-10 rounded-full border border-[#00A4EF]/20"
+          style={{ animation: "_sumRipple 1200ms ease-out infinite", animationDelay: "500ms" }}
+        />
+
+        {/* icon */}
+        <div
+          className="h-14 w-14 rounded-2xl bg-white/80 border border-white/60 shadow-sm flex items-center justify-center"
+          style={{ animation: "_sumFloat 1200ms ease-in-out infinite, _sumPulseGlow 1200ms ease-in-out infinite" }}
+        >
+          <SummarizeIcon className="h-9 w-9" />
+        </div>
+
+        <div className="text-sm font-semibold text-slate-700">Generating summary…</div>
+        <div className="text-xs text-slate-500">This usually takes a few seconds</div>
+      </div>
+    </div>
+  );
+}
 
 export default function TranscriptPanel({
   selected,
@@ -568,16 +612,15 @@ export default function TranscriptPanel({
     );
   }
 
-  async function runSummarize() {
+ async function runSummarize() {
   if (!canSummarize || !selected) return;
 
-  // If we already have it, just show it
   if (summaryValue) {
     setTab("summary");
     return;
   }
 
-  // ✅ Switch immediately so user sees progress while generating
+  // ✅ switch immediately so loader is visible in the box
   setTab("summary");
   setSummaryLoading(true);
   setSummaryError("");
@@ -591,6 +634,7 @@ export default function TranscriptPanel({
     setSummaryLoading(false);
   }
 }
+
 
 
 
@@ -702,11 +746,16 @@ export default function TranscriptPanel({
             ) : !isCompleted ? (
               <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
             ) : tab === "summary" ? (
-              <SummaryView
-                summaryLoading={summaryLoading}
-                summaryError={summaryError}
-                summaryValue={summaryValue}
-              />
+              <div className="relative min-h-[240px]">
+                <SummaryView
+                  summaryLoading={summaryLoading}
+                  summaryError={summaryError}
+                  summaryValue={summaryValue}
+                />
+
+                {/* ✅ centered animation inside transcript box */}
+                {summaryLoading ? <SummaryLoadingOverlay /> : null}
+              </div>
             ) : transcriptText.startsWith("Loading") ? (
               <TranscriptSearchingAnimation />
             ) : transcriptText.startsWith("Transcript load failed") ? (
