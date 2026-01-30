@@ -261,7 +261,7 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
           </div>
         </div>
       ) : (
-        <div className="text-slate-600">Click summarize to generate a summary.</div>
+        <div />
       )}
     </div>
   );
@@ -746,14 +746,16 @@ export default function TranscriptPanel({
             ) : !isCompleted ? (
               <div className="text-sm text-slate-600">No transcript for this meeting status.</div>
             ) : tab === "summary" ? (
-              <div className="relative min-h-[240px]">
-                <SummaryView
-                  summaryLoading={summaryLoading}
-                  summaryError={summaryError}
-                  summaryValue={summaryValue}
-                />
+              <div className="relative h-full min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 overflow-auto p-3">
+                  <SummaryView
+                    summaryLoading={summaryLoading}
+                    summaryError={summaryError}
+                    summaryValue={summaryValue}
+                  />
+                </div>
 
-                {/* ✅ centered animation inside transcript box */}
+                {/* centered overlay spanning the full transcript area */}
                 {summaryLoading ? <SummaryLoadingOverlay /> : null}
               </div>
             ) : transcriptText.startsWith("Loading") ? (
