@@ -23,34 +23,21 @@ function formatLocalRange12h(startUTC, endUTC) {
   return `${fmt.format(start)} → ${fmt.format(end)}`;
 }
 
-function defaultRangeISO() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(now.getDate() - 14);
-  const end = new Date(now);
-  end.setDate(now.getDate() + 14);
-  return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
-export async function fetchMeetingsByStatus(statusTab, { startISO = null, endISO = null } = {}) {
-  const range = {
-    startISO: startISO || defaultRangeISO().startISO,
-    endISO: endISO || defaultRangeISO().endISO,
-  };
-
+export async function fetchMeetingsByStatus(
+  statusTab,
+  { cursor = null, pageSize = 20, startISO = null, endISO = null } = {}
+) {
+  // ✅ MOCK MODE
   if (USE_MOCKS) {
-    const s = new Date(range.startISO).getTime();
-    const e = new Date(range.endISO).getTime();
+    const all = (mockMeetings || []).filter((m) => m.status === statusTab);
 
-    const all = (mockMeetings || [])
-      .filter((m) => m.status === statusTab)
-      .filter((m) => {
-        const t = m.startUTC ? new Date(m.startUTC).getTime() : null;
-        if (t == null) return true;
-        return t >= s && t <= e;
-      });
+    const offset = cursor ? Number(cursor) : 0;
+    const page = all.slice(offset, offset + pageSize);
 
-    return all.map((m) => ({
+    const nextOffset = offset + pageSize;
+    const nextCursor = nextOffset < all.length ? String(nextOffset) : null;
+
+    const items = page.map((m) => ({
       id: m.id,
       title: m.title || "(no subject)",
       subject: m.title || "(no subject)",
@@ -70,23 +57,39 @@ export async function fetchMeetingsByStatus(statusTab, { startISO = null, endISO
       summary: m.summary || "",
       raw: m.raw || m,
     }));
+
+    return { items, nextCursor };
   }
 
+  // ✅ REAL BACKEND MODE
   const token = await getTeamsToken();
+
+  // Default window: -14 to +14 days (unless UI passes startISO/endISO)
+  const now = new Date();
+
+  const start = startISO ? new Date(startISO) : new Date(now);
+  if (!startISO) start.setDate(now.getDate() - 14);
+
+  const end = endISO ? new Date(endISO) : new Date(now);
+  if (!endISO) end.setDate(now.getDate() + 14);
 
   const { res, data } = await postJson("/graph/events", {
     token,
-    startISO: range.startISO,
-    endISO: range.endISO,
+    startISO: start.toISOString(),
+    endISO: end.toISOString(),
     status: statusTab,
+    cursor,
+    pageSize,
   });
 
   if (!res.ok || !data.ok) {
     throw new Error(data?.error || data?.detail || `Meetings fetch failed (${res.status})`);
   }
 
-  const items = data.value || [];
-  return items.map((m) => ({
+  const rawItems = data.value || [];
+  const nextCursor = data.nextCursor || null;
+
+  const items = rawItems.map((m) => ({
     id: m.id,
     title: m.title || "(no subject)",
     subject: m.raw?.subject || m.title || "(no subject)",
@@ -106,4 +109,6 @@ export async function fetchMeetingsByStatus(statusTab, { startISO = null, endISO
     summary: m.summary || "",
     raw: m.raw || m,
   }));
+
+  return { items, nextCursor };
 }
