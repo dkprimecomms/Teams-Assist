@@ -1,5 +1,5 @@
-//src/components/sidebar/MeetingsSidebar.jsx
-import React, { useMemo } from "react";
+// src/components/sidebar/MeetingsSidebar.jsx
+import React from "react";
 import TabButton from "./TabButton";
 import MeetingRow from "./MeetingRow";
 
@@ -17,18 +17,19 @@ export default function MeetingsSidebar({
   meetings,
   selectedMeetingId,
   setSelectedMeetingId,
-}) {
-  const filteredMeetings = useMemo(
-    () => meetings.filter((m) => m.status === statusTab),
-    [meetings, statusTab]
-  );
 
-  // Option B underline (sliding)
+  // ✅ NEW pagination props
+  onPrevPage,
+  onNextPage,
+  canPrev,
+  canNext,
+}) {
+  // Sliding underline for tabs
   const activeIndex = Math.max(0, TABS.indexOf(statusTab));
   const translatePct = activeIndex * 100;
 
   return (
-<aside className="h-full min-h-0 flex flex-col glass">
+    <aside className="h-full min-h-0 flex flex-col glass">
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-lg font-semibold text-slate-900">Meetings</h1>
@@ -55,13 +56,13 @@ export default function MeetingsSidebar({
         </div>
       </div>
 
-      {/* Meetings list (no boxes) */}
+      {/* Meetings list (current page only) */}
       <div className="flex-1 overflow-auto px-2 py-2">
-        {filteredMeetings.length === 0 ? (
+        {meetings.length === 0 ? (
           <div className="px-3 py-3 text-sm text-slate-600">No meetings in this tab.</div>
         ) : (
           <div>
-            {filteredMeetings.map((m) => (
+            {meetings.map((m) => (
               <MeetingRow
                 key={m.id}
                 meeting={m}
@@ -71,6 +72,35 @@ export default function MeetingsSidebar({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ✅ Pagination footer */}
+      <div className="border-t border-slate-200 px-3 py-2 flex items-center justify-between">
+        <button
+          onClick={onPrevPage}
+          disabled={!canPrev}
+          className={[
+            "px-3 py-1.5 rounded-lg border text-sm transition",
+            canPrev
+              ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
+              : "border-slate-100 text-slate-300 bg-white/60 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Prev
+        </button>
+
+        <button
+          onClick={onNextPage}
+          disabled={!canNext}
+          className={[
+            "px-3 py-1.5 rounded-lg border text-sm transition",
+            canNext
+              ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
+              : "border-slate-100 text-slate-300 bg-white/60 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Next
+        </button>
       </div>
     </aside>
   );
