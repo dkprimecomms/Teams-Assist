@@ -2,6 +2,7 @@
 import React from "react";
 import TranscriptPanel from "./TranscriptPanel";
 import RightRail from "./RightRail";
+import DateSortBar from "../ui/DateSortBar";
 
 export default function MainLayout({
   selected,
@@ -10,6 +11,12 @@ export default function MainLayout({
   participantsOpen,
   setParticipantsOpen,
   myEmail,
+
+  // ✅ global filters from App
+  dateRange,
+  sortOrder,
+  onApplyFilters,
+  onResetFilters,
 }) {
   const participants = selected?.participants || [];
 
@@ -19,27 +26,41 @@ export default function MainLayout({
         className={[
           "grid grid-cols-1 gap-4 flex-1 min-h-0 overflow-hidden items-stretch",
           selected?.status === "upcoming" || selected?.status === "skipped"
-            ? "lg:grid-cols-[3fr_2fr]"     // ✅ 60% / 40% (upcoming)
-            : "lg:grid-cols-[1fr_280px]",  // ✅ default (others)
+            ? "lg:grid-cols-[3fr_2fr]"
+            : "lg:grid-cols-[1fr_280px]",
         ].join(" ")}
       >
-        <div className="min-h-0 flex">
-          <TranscriptPanel
-            selected={selected}
-            participants={participants}
-            myEmail={myEmail}
-            onOpenParticipants={() => setParticipantsOpen(true)}
-            onOpenSidebar={() => setSidebarOpen(true)}
+        {/* LEFT: FILTER BAR + Transcript */}
+        <div className="min-h-0 flex flex-col gap-3">
+          {/* ✅ filter bar ABOVE transcript panel (always visible) */}
+          <DateSortBar
+            startISO={dateRange?.startISO || null}
+            endISO={dateRange?.endISO || null}
+            sortOrder={sortOrder || "asc"}
+            onApply={onApplyFilters}
+            onReset={onResetFilters}
           />
+
+          <div className="min-h-0 flex">
+            <TranscriptPanel
+              selected={selected}
+              participants={participants}
+              myEmail={myEmail}
+              onOpenParticipants={() => setParticipantsOpen(true)}
+              onOpenSidebar={() => setSidebarOpen(true)}
+            />
+          </div>
         </div>
 
-        {/* Right rail only on lg+ */}
-        <div className="min-h-0 hidden lg:flex">
+        {/* RIGHT: FILTER BAR + Participants (desktop only) */}
+        <div className="min-h-0 hidden lg:flex flex-col gap-3">
+         
+
           <RightRail selected={selected} />
         </div>
       </div>
 
-      {/* Participants bottom-sheet on <lg (mobile + tablet) */}
+      {/* Participants sheet on mobile */}
       {participantsOpen && (
         <>
           <div
@@ -56,6 +77,18 @@ export default function MainLayout({
                 Close
               </button>
             </div>
+
+            {/* ✅ filter bar ABOVE participants list in the sheet */}
+            <div className="px-3 pb-3">
+              <DateSortBar
+                startISO={dateRange?.startISO || null}
+                endISO={dateRange?.endISO || null}
+                sortOrder={sortOrder || "asc"}
+                onApply={onApplyFilters}
+                onReset={onResetFilters}
+              />
+            </div>
+
             <div className="max-h-[60vh] overflow-auto p-3">
               <RightRail selected={selected} />
             </div>
