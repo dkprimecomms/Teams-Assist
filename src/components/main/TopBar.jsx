@@ -1,5 +1,6 @@
 // src/components/main/TopBar.jsx
 import React from "react";
+import PrimeLogo from "../../assets/prime.png"; // ✅ SAME PATTERN as SummaryPng
 
 function MenuIcon() {
   return (
@@ -33,13 +34,10 @@ export default function TopBar({
 
   const invalidRange = !!from && !!to && from > to;
 
-  // Change if your logo path differs
-  const LOGO_SRC = "src/assets/prime.png";
-
   return (
     <header className="glass rounded-2xl border border-white/30 px-4 py-3 shadow-sm">
       <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        {/* LEFT: hamburger (mobile) + date filter */}
+        {/* LEFT: hamburger + date filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
           <button
             onClick={onOpenSidebar}
@@ -101,13 +99,13 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* RIGHT: logo (right-most) */}
+        {/* RIGHT: Prime logo (bundled asset, Teams-safe) */}
         <div className="flex items-center justify-end">
           <img
-            src={LOGO_SRC}
+            src={PrimeLogo}
             alt="Prime logo"
-            className="h-8 w-auto object-contain"
-            style={{ maxHeight: 20 }}
+            className="h-8 w-auto object-contain select-none"
+            draggable="false"
           />
         </div>
       </div>
