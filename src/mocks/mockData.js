@@ -11,7 +11,7 @@ function hoursFromNow(h) {
 // -----------------------------
 export const mockMeetings = [
   // ===== COMPLETED =====
-  ...Array.from({ length: 10 }).map((_, i) => ({
+  ...Array.from({ length: 30 }).map((_, i) => ({
     id: `completed-${i + 1}`,
     title: `Completed Meeting ${i + 1}`,
     status: "completed",

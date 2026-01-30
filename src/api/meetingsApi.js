@@ -23,7 +23,10 @@ function formatLocalRange12h(startUTC, endUTC) {
   return `${fmt.format(start)} → ${fmt.format(end)}`;
 }
 
-export async function fetchMeetingsByStatus(statusTab, { cursor = null, pageSize = 20 } = {}) {
+export async function fetchMeetingsByStatus(
+  statusTab,
+  { cursor = null, pageSize = 20, startISO = null, endISO = null } = {}
+) {
   // ✅ MOCK MODE
   if (USE_MOCKS) {
     const all = (mockMeetings || []).filter((m) => m.status === statusTab);
@@ -61,19 +64,22 @@ export async function fetchMeetingsByStatus(statusTab, { cursor = null, pageSize
   // ✅ REAL BACKEND MODE
   const token = await getTeamsToken();
 
+  // Default window: -14 to +14 days (unless UI passes startISO/endISO)
   const now = new Date();
-  const start = new Date(now);
-  start.setDate(now.getDate() - 14);
-  const end = new Date(now);
-  end.setDate(now.getDate() + 14);
+
+  const start = startISO ? new Date(startISO) : new Date(now);
+  if (!startISO) start.setDate(now.getDate() - 14);
+
+  const end = endISO ? new Date(endISO) : new Date(now);
+  if (!endISO) end.setDate(now.getDate() + 14);
 
   const { res, data } = await postJson("/graph/events", {
     token,
     startISO: start.toISOString(),
     endISO: end.toISOString(),
     status: statusTab,
-    cursor,       // ✅ NEW
-    pageSize,     // ✅ NEW
+    cursor,
+    pageSize,
   });
 
   if (!res.ok || !data.ok) {
@@ -81,7 +87,7 @@ export async function fetchMeetingsByStatus(statusTab, { cursor = null, pageSize
   }
 
   const rawItems = data.value || [];
-  const nextCursor = data.nextCursor || null; // ✅ backend should return this
+  const nextCursor = data.nextCursor || null;
 
   const items = rawItems.map((m) => ({
     id: m.id,
@@ -106,4 +112,3 @@ export async function fetchMeetingsByStatus(statusTab, { cursor = null, pageSize
 
   return { items, nextCursor };
 }
-

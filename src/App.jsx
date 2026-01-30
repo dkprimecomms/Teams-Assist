@@ -8,19 +8,31 @@ import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
 import { getTeamsUser } from "./api/teamsContext";
 
+function defaultRangeISO() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(now.getDate() - 14);
+  const end = new Date(now);
+  end.setDate(now.getDate() + 14);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
 export default function App() {
-  const [statusTab, setStatusTab] = useState("upcoming"); // "upcoming" | "completed" | "skipped"
+  const [statusTab, setStatusTab] = useState("upcoming");
   const [selectedMeetingId, setSelectedMeetingId] = useState("");
 
   const [meetings, setMeetings] = useState([]);
   const [loadingMeetings, setLoadingMeetings] = useState(false);
   const [meetingsError, setMeetingsError] = useState("");
 
-  // ✅ Pagination state
+  // ✅ NEW: date range state
+  const [dateRange, setDateRange] = useState(() => defaultRangeISO());
+
+  // ✅ Pagination state (keep if you implemented paging)
   const PAGE_SIZE = 20;
-  const [meetingsCursor, setMeetingsCursor] = useState(null); // current page cursor
-  const [meetingsNextCursor, setMeetingsNextCursor] = useState(null); // next page cursor from backend
-  const [meetingsPrevStack, setMeetingsPrevStack] = useState([]); // stack of previous cursors for Prev
+  const [meetingsCursor, setMeetingsCursor] = useState(null);
+  const [meetingsNextCursor, setMeetingsNextCursor] = useState(null);
+  const [meetingsPrevStack, setMeetingsPrevStack] = useState([]);
 
   const [participants, setParticipants] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
@@ -30,28 +42,23 @@ export default function App() {
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState("");
 
-  // ✅ responsive toggles
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [myEmail, setMyEmail] = useState("");
 
-  // Get my email (for UI alignment)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const u = await getTeamsUser();
         if (!cancelled) setMyEmail(u.email || "");
-      } catch {
-        // ignore
-      }
+      } catch {}
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Helper to load a specific page (cursor)
   async function loadMeetingsPage({ cursor = null, resetPrev = false } = {}) {
     setLoadingMeetings(true);
     setMeetingsError("");
@@ -63,10 +70,11 @@ export default function App() {
     }
 
     try {
-      // ✅ NOTE: meetingsApi must return { items, nextCursor }
       const { items, nextCursor } = await fetchMeetingsByStatus(statusTab, {
         cursor,
         pageSize: PAGE_SIZE,
+        startISO: dateRange.startISO,
+        endISO: dateRange.endISO,
       });
 
       const normalized = (items || []).map((m) => ({
@@ -94,30 +102,24 @@ export default function App() {
     }
   }
 
-  // 1) Load meetings (page 1) whenever status tab changes
+  // ✅ Reload meetings when tab OR date range changes
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      // reset to first page on tab change
-      if (!cancelled) {
-        await loadMeetingsPage({ cursor: null, resetPrev: true });
-      }
+      if (cancelled) return;
+      await loadMeetingsPage({ cursor: null, resetPrev: true });
     })();
 
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusTab]);
+  }, [statusTab, dateRange.startISO, dateRange.endISO]);
 
-  // Pagination handlers
   async function goNextPage() {
     if (!meetingsNextCursor) return;
-
-    // Save current cursor for Prev (null means "first page")
     setMeetingsPrevStack((s) => [...s, meetingsCursor]);
-
     await loadMeetingsPage({ cursor: meetingsNextCursor, resetPrev: false });
   }
 
@@ -131,16 +133,14 @@ export default function App() {
     await loadMeetingsPage({ cursor: prevCursor, resetPrev: false });
   }
 
-  // 2) Keep selection valid
+  // Keep selection valid
   useEffect(() => {
     const stillValid = meetings.find((m) => m.id === selectedMeetingId);
     if (stillValid) return;
     setSelectedMeetingId(meetings?.[0]?.id || "");
   }, [meetings, selectedMeetingId]);
 
-  // 3) Participants:
-  // ✅ Upcoming: use attendees from /graph/events (instant)
-  // ✅ Completed/Skipped: use invitees API
+  // Participants logic
   useEffect(() => {
     if (!selectedMeetingId) return;
 
@@ -178,20 +178,14 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 4) Transcript ONLY for completed
+  // Transcript only for completed
   useEffect(() => {
     if (!selectedMeetingId) return;
 
     const m = meetings.find((x) => x.id === selectedMeetingId);
     setTranscriptError("");
 
-    if (!m) {
-      setTranscriptText("");
-      setTranscriptLoading(false);
-      return;
-    }
-
-    if (m.status !== "completed") {
+    if (!m || m.status !== "completed") {
       setTranscriptText("");
       setTranscriptLoading(false);
       return;
@@ -227,19 +221,18 @@ export default function App() {
     };
   }, [selectedMeetingId, meetings]);
 
-  // 5) Selected meeting object
   const selectedRaw = useMemo(
     () => meetings.find((m) => m.id === selectedMeetingId) || null,
     [meetings, selectedMeetingId]
   );
 
-  // 6) Merge details + participants + transcript into selected
   const selected = useMemo(() => {
     if (!selectedRaw) return null;
 
     return {
       ...selectedRaw,
-      participants: (participants && participants.length ? participants : selectedRaw.attendees) || [],
+      participants:
+        (participants && participants.length ? participants : selectedRaw.attendees) || [],
       organizer: selectedRaw.organizer || null,
       attendees: selectedRaw.attendees || [],
       location: selectedRaw.location || "",
@@ -257,7 +250,6 @@ export default function App() {
 
   return (
     <div className="h-screen w-full overflow-hidden bg-gradient-to-br from-[#53dbf2] via-[#ce9eec] to-[#3a7ff2]">
-      {/* Mobile overlay for sidebar */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/30 md:hidden"
@@ -265,7 +257,7 @@ export default function App() {
         />
       )}
 
-      {/* Mobile sidebar drawer */}
+      {/* Mobile sidebar */}
       <div
         className={[
           "fixed z-50 inset-y-0 left-0 w-[380px] md:hidden",
@@ -283,7 +275,9 @@ export default function App() {
             setSelectedMeetingId(id);
             setSidebarOpen(false);
           }}
-          // ✅ pagination props
+          dateRange={dateRange}
+          onApplyDateRange={(r) => setDateRange(r)}
+          onResetDateRange={() => setDateRange(defaultRangeISO())}
           onPrevPage={goPrevPage}
           onNextPage={goNextPage}
           canPrev={canPrev}
@@ -291,8 +285,8 @@ export default function App() {
         />
       </div>
 
-      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[380px_1fr]">
-        {/* Sidebar (desktop) */}
+      <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[400px_1fr]">
+        {/* Desktop sidebar */}
         <div className="hidden md:block relative h-full min-h-0 border-r border-white/40">
           <MeetingsSidebar
             statusTab={statusTab}
@@ -300,7 +294,9 @@ export default function App() {
             meetings={meetings}
             selectedMeetingId={selectedMeetingId}
             setSelectedMeetingId={setSelectedMeetingId}
-            // ✅ pagination props
+            dateRange={dateRange}
+            onApplyDateRange={(r) => setDateRange(r)}
+            onResetDateRange={() => setDateRange(defaultRangeISO())}
             onPrevPage={goPrevPage}
             onNextPage={goNextPage}
             canPrev={canPrev}
@@ -329,17 +325,6 @@ export default function App() {
             setParticipantsOpen={setParticipantsOpen}
             myEmail={myEmail}
           />
-
-          {participantsLoading && (
-            <div className="absolute top-3 right-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
-              Loading participants...
-            </div>
-          )}
-          {participantsError && (
-            <div className="absolute top-3 right-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 shadow-sm">
-              {participantsError}
-            </div>
-          )}
         </div>
       </div>
     </div>
