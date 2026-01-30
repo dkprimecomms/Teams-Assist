@@ -1,6 +1,7 @@
 // src/components/main/TopBar.jsx
 import React from "react";
-import PrimeLogo from "../../assets/prime.png"; // ✅ SAME PATTERN as SummaryPng
+import PrimeLogo from "../../assets/prime.png";
+
 
 function MenuIcon() {
   return (
