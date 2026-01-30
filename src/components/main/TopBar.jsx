@@ -107,7 +107,7 @@ export default function TopBar({
             src={LOGO_SRC}
             alt="Prime logo"
             className="h-8 w-auto object-contain"
-            style={{ maxHeight: 25 }}
+            style={{ maxHeight: 20 }}
           />
         </div>
       </div>

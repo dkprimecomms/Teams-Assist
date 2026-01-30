@@ -4,23 +4,24 @@ import Card from "../ui/Card";
 import ParticipantsIcon from "../icons/ParticipantsIcon";
 import { useParticipantPhotos } from "../../hooks/useParticipantPhotos";
 import { fetchSummaryForMeeting } from "../../api/summaryApi";
+import SummaryPng from "../../assets/summary.png";
 
-function SummarizeIcon({ className = "" }) {
+
+function SummarizeIcon({ className = "", spinning = false }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M4 6h16" />
-      <path d="M4 12h10" />
-      <path d="M4 18h16" />
-      <path d="M16 10l4 2-4 2z" />
-    </svg>
+    <img
+      src={SummaryPng}
+      alt="Summary"
+      className={[
+        className,
+        spinning ? "animate-spin" : "",
+        "select-none",
+      ].join(" ")}
+      draggable="false"
+    />
   );
 }
+
 
 function MenuIcon() {
   return (
@@ -222,7 +223,10 @@ function SummaryView({ summaryLoading, summaryError, summaryValue }) {
   return (
     <div className="text-[13.5px]">
       {summaryLoading ? (
-        <div className="text-slate-600">Summarizing…</div>
+        <div className="flex items-center gap-3 text-slate-600">
+          <SummarizeIcon className="h-6 w-6" spinning />
+          <div className="text-[13.5px]">Summarizing…</div>
+        </div>
       ) : summaryError ? (
         <div className="text-rose-700">Summary failed: {summaryError}</div>
       ) : summaryValue ? (
@@ -565,27 +569,30 @@ export default function TranscriptPanel({
   }
 
   async function runSummarize() {
-    if (!canSummarize || !selected) return;
+  if (!canSummarize || !selected) return;
 
-    if (summaryValue) {
-      setTab("summary");
-      return;
-    }
-
-    setSummaryLoading(true);
-    setSummaryError("");
-
-    try {
-      const result = await fetchSummaryForMeeting(selected);
-      setSummaryValue(result);
-      setTab("summary");
-    } catch (e) {
-      setSummaryError(String(e?.message || e));
-      setTab("summary");
-    } finally {
-      setSummaryLoading(false);
-    }
+  // If we already have it, just show it
+  if (summaryValue) {
+    setTab("summary");
+    return;
   }
+
+  // ✅ Switch immediately so user sees progress while generating
+  setTab("summary");
+  setSummaryLoading(true);
+  setSummaryError("");
+
+  try {
+    const result = await fetchSummaryForMeeting(selected);
+    setSummaryValue(result);
+  } catch (e) {
+    setSummaryError(String(e?.message || e));
+  } finally {
+    setSummaryLoading(false);
+  }
+}
+
+
 
   const headerTitle = (
     <div className="w-full min-w-0">
@@ -773,7 +780,7 @@ export default function TranscriptPanel({
               ].join(" ")}
               type="button"
             >
-              <SummarizeIcon className="h-5 w-5" />
+              <SummarizeIcon className="h-5 w-5" spinning={summaryLoading} />
             </button>
           )}
         </div>
