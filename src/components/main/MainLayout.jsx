@@ -1,5 +1,6 @@
 // src/components/main/MainLayout.jsx
 import React from "react";
+import TopBar from "./TopBar";
 import TranscriptPanel from "./TranscriptPanel";
 import RightRail from "./RightRail";
 
@@ -10,17 +11,29 @@ export default function MainLayout({
   participantsOpen,
   setParticipantsOpen,
   myEmail,
+
+  // ✅ Date filter props
+  dateRange,
+  onApplyDateRange,
+  onResetDateRange,
 }) {
   const participants = selected?.participants || [];
 
   return (
     <main className="h-full min-h-0 p-3 lg:p-4 flex flex-col gap-3 overflow-hidden">
+      <TopBar
+        onOpenSidebar={() => setSidebarOpen(true)}
+        dateRange={dateRange}
+        onApplyDateRange={onApplyDateRange}
+        onResetDateRange={onResetDateRange}
+      />
+
       <div
         className={[
           "grid grid-cols-1 gap-4 flex-1 min-h-0 overflow-hidden items-stretch",
           selected?.status === "upcoming" || selected?.status === "skipped"
-            ? "lg:grid-cols-[3fr_2fr]"     // ✅ 60% / 40% (upcoming)
-            : "lg:grid-cols-[1fr_280px]",  // ✅ default (others)
+            ? "lg:grid-cols-[3fr_2fr]" // 60/40
+            : "lg:grid-cols-[1fr_280px]", // default
         ].join(" ")}
       >
         <div className="min-h-0 flex">
@@ -39,7 +52,7 @@ export default function MainLayout({
         </div>
       </div>
 
-      {/* Participants bottom-sheet on <lg (mobile + tablet) */}
+      {/* Participants bottom-sheet on <lg */}
       {participantsOpen && (
         <>
           <div

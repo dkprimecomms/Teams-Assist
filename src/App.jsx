@@ -25,10 +25,13 @@ export default function App() {
   const [loadingMeetings, setLoadingMeetings] = useState(false);
   const [meetingsError, setMeetingsError] = useState("");
 
-  // ✅ NEW: date range state
+  // ✅ Date range state (used by TopBar)
   const [dateRange, setDateRange] = useState(() => defaultRangeISO());
 
-  // ✅ Pagination state (keep if you implemented paging)
+  // ✅ Date order state (used by Sidebar toggle). Default: new → old
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  // ✅ Pagination state
   const PAGE_SIZE = 20;
   const [meetingsCursor, setMeetingsCursor] = useState(null);
   const [meetingsNextCursor, setMeetingsNextCursor] = useState(null);
@@ -87,8 +90,15 @@ export default function App() {
         endUTC: m.endUTC || null,
       }));
 
-      setMeetings(normalized);
-      setSelectedMeetingId(normalized?.[0]?.id || "");
+      // ✅ Sort based on sidebar date order toggle
+      const sorted = [...normalized].sort((a, b) => {
+        const at = a?.startUTC ? new Date(a.startUTC).getTime() : 0;
+        const bt = b?.startUTC ? new Date(b.startUTC).getTime() : 0;
+        return sortOrder === "asc" ? at - bt : bt - at; // asc=old→new, desc=new→old
+      });
+
+      setMeetings(sorted);
+      setSelectedMeetingId(sorted?.[0]?.id || "");
       setMeetingsCursor(cursor);
       setMeetingsNextCursor(nextCursor || null);
     } catch (e) {
@@ -102,7 +112,7 @@ export default function App() {
     }
   }
 
-  // ✅ Reload meetings when tab OR date range changes
+  // Reload meetings when tab OR date range changes
   useEffect(() => {
     let cancelled = false;
 
@@ -116,6 +126,18 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusTab, dateRange.startISO, dateRange.endISO]);
+
+  // ✅ Resort instantly when sortOrder changes (no refetch required)
+  useEffect(() => {
+    setMeetings((prev) => {
+      const sorted = [...(prev || [])].sort((a, b) => {
+        const at = a?.startUTC ? new Date(a.startUTC).getTime() : 0;
+        const bt = b?.startUTC ? new Date(b.startUTC).getTime() : 0;
+        return sortOrder === "asc" ? at - bt : bt - at;
+      });
+      return sorted;
+    });
+  }, [sortOrder]);
 
   async function goNextPage() {
     if (!meetingsNextCursor) return;
@@ -275,9 +297,8 @@ export default function App() {
             setSelectedMeetingId(id);
             setSidebarOpen(false);
           }}
-          dateRange={dateRange}
-          onApplyDateRange={(r) => setDateRange(r)}
-          onResetDateRange={() => setDateRange(defaultRangeISO())}
+          sortOrder={sortOrder}
+          onChangeSortOrder={setSortOrder}
           onPrevPage={goPrevPage}
           onNextPage={goNextPage}
           canPrev={canPrev}
@@ -294,9 +315,8 @@ export default function App() {
             meetings={meetings}
             selectedMeetingId={selectedMeetingId}
             setSelectedMeetingId={setSelectedMeetingId}
-            dateRange={dateRange}
-            onApplyDateRange={(r) => setDateRange(r)}
-            onResetDateRange={() => setDateRange(defaultRangeISO())}
+            sortOrder={sortOrder}
+            onChangeSortOrder={setSortOrder}
             onPrevPage={goPrevPage}
             onNextPage={goNextPage}
             canPrev={canPrev}
@@ -324,6 +344,9 @@ export default function App() {
             participantsOpen={participantsOpen}
             setParticipantsOpen={setParticipantsOpen}
             myEmail={myEmail}
+            dateRange={dateRange}
+            onApplyDateRange={(r) => setDateRange(r)}
+            onResetDateRange={() => setDateRange(defaultRangeISO())}
           />
         </div>
       </div>

@@ -17,69 +17,106 @@ function MenuIcon() {
   );
 }
 
-export default function TopBar({ selected, onOpenSidebar }) {
-  // ✅ Dynamic heading based on meeting status
-  let heading = "Transcript Viewer";
+export default function TopBar({
+  onOpenSidebar,
+  dateRange,
+  onApplyDateRange,
+  onResetDateRange,
+}) {
+  const [from, setFrom] = React.useState(() => (dateRange?.startISO || "").slice(0, 10));
+  const [to, setTo] = React.useState(() => (dateRange?.endISO || "").slice(0, 10));
 
-  if (selected?.status === "upcoming") {
-    heading = "Meeting Details";
-  } else if (selected?.status === "completed") {
-    heading = "Transcript Viewer";
-  } else if (selected?.status === "skipped") {
-    heading = "Meeting Details";
-  }
+  React.useEffect(() => {
+    setFrom((dateRange?.startISO || "").slice(0, 10));
+    setTo((dateRange?.endISO || "").slice(0, 10));
+  }, [dateRange?.startISO, dateRange?.endISO]);
+
+  const invalidRange = !!from && !!to && from > to;
+
+  // Change if your logo path differs
+  const LOGO_SRC = "src/assets/prime.png";
 
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          {/* Mobile: hamburger */}
+    <header className="glass rounded-2xl border border-white/30 px-4 py-3 shadow-sm">
+      <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* LEFT: hamburger (mobile) + date filter */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
           <button
             onClick={onOpenSidebar}
-            className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-full glass shadow-md text-slate-700"
+            className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-full glass shadow-md text-slate-700 self-start"
             title="Meetings"
           >
             <MenuIcon />
           </button>
 
-          {/* ✅ Dynamic title */}
-          <h2 className="text-xl font-semibold text-slate-900 truncate">
-            {heading}
-          </h2>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] text-slate-600 mb-1">From</label>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] text-slate-600 mb-1">To</label>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (!from || !to || invalidRange) return;
+                const startISO = new Date(`${from}T00:00:00.000Z`).toISOString();
+                const endISO = new Date(`${to}T23:59:59.999Z`).toISOString();
+                onApplyDateRange?.({ startISO, endISO });
+              }}
+              disabled={!from || !to || invalidRange}
+              className={[
+                "rounded-xl border px-3 py-1.5 text-sm font-medium transition",
+                !from || !to || invalidRange
+                  ? "border-slate-100 text-slate-300 bg-white/60 cursor-not-allowed"
+                  : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50",
+              ].join(" ")}
+            >
+              Apply
+            </button>
+
+            <button
+              type="button"
+              onClick={onResetDateRange}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reset
+            </button>
+          </div>
         </div>
 
-        <p className="text-sm text-slate-500 mt-1">
-          {selected ? (
-            <>
-              <span className="font-medium text-slate-700">
-                {selected.title}
-              </span>{" "}
-              <span className="text-slate-400">•</span>{" "}
-              <span className="truncate">{selected.when}</span>
-            </>
-          ) : (
-            "Select a meeting."
-          )}
-        </p>
-
-        {selected?.status && (
-          <div className="mt-1 text-xs text-slate-500">
-            Status:{" "}
-            <span className="font-medium text-slate-700">
-              {selected.status}
-            </span>
-            {selected.onlineProvider ? (
-              <>
-                {" "}
-                <span className="text-slate-400">•</span> Provider:{" "}
-                <span className="font-medium text-slate-700">
-                  {selected.onlineProvider}
-                </span>
-              </>
-            ) : null}
-          </div>
-        )}
+        {/* RIGHT: logo (right-most) */}
+        <div className="flex items-center justify-end">
+          <img
+            src={LOGO_SRC}
+            alt="Prime logo"
+            className="h-8 w-auto object-contain"
+            style={{ maxHeight: 25 }}
+          />
+        </div>
       </div>
+
+      {invalidRange && (
+        <div className="mt-1 text-xs text-rose-600">
+          “From” date must be earlier than “To” date.
+        </div>
+      )}
     </header>
   );
 }
