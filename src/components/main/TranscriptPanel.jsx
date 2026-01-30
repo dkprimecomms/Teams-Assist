@@ -482,8 +482,7 @@ function SummaryLoadingOverlay() {
       `}</style>
 
       {/* optional soft backdrop, keeps focus without hiding content */}
-      <div className="absolute inset-0 bg-white/35 backdrop-blur-[2px]" />
-
+      
       <div className="relative flex flex-col items-center gap-3">
         {/* ripples */}
         <span
@@ -500,12 +499,13 @@ function SummaryLoadingOverlay() {
         />
 
         {/* icon */}
-        <div
-          className="h-14 w-14 rounded-2xl bg-white/80 border border-white/60 shadow-sm flex items-center justify-center"
+       <div
+          className="h-14 w-14 flex items-center justify-center"
           style={{ animation: "_sumFloat 1200ms ease-in-out infinite, _sumPulseGlow 1200ms ease-in-out infinite" }}
         >
-          <SummarizeIcon className="h-9 w-9" />
+          <SummarizeIcon className="h-10 w-10" />
         </div>
+
 
         <div className="text-sm font-semibold text-slate-700">Generating summary…</div>
         <div className="text-xs text-slate-500">This usually takes a few seconds</div>
