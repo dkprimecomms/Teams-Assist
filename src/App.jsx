@@ -74,6 +74,19 @@ function rangeFromPreset(preset) {
     return { startISO: start.toISOString(), endISO: end.toISOString() };
   }
 
+  if (preset === "previousMonth") {
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // day 0 => last day of previous month
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+if (preset === "nextMonth") {
+  const start = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999); // last day of next month
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+
  
 
   // custom is handled separately
@@ -129,17 +142,20 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-  // Upcoming should not use previousWeek
-  if (statusTab === "upcoming" && rangePreset === "previousWeek") {
-    setRangePreset("nextWeek");
+  // Upcoming should not use past-only presets
+  if (statusTab === "upcoming") {
+    if (rangePreset === "previousWeek") setRangePreset("nextWeek");
+    if (rangePreset === "previousMonth") setRangePreset("nextMonth");
     return;
   }
 
-  // Non-upcoming tabs should not use nextWeek (optional but keeps UI consistent)
-  if (statusTab !== "upcoming" && rangePreset === "nextWeek") {
-    setRangePreset("previousWeek");
+  // Completed/Skipped should not use future-only presets
+  if (statusTab !== "upcoming") {
+    if (rangePreset === "nextWeek") setRangePreset("previousWeek");
+    if (rangePreset === "nextMonth") setRangePreset("previousMonth");
   }
 }, [statusTab, rangePreset]);
+
 
   useEffect(() => {
   if (rangePreset === "custom") return; // custom uses explicit apply

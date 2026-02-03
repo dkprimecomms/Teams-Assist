@@ -20,16 +20,14 @@ function MenuIcon() {
 
 export default function TopBar({
   onOpenSidebar,
-
-  // ✅ NEW
-  statusTab,
-
+  statusTab, // ✅ needed for tab-specific options
   rangePreset,
   onChangeRangePreset,
   dateRange,
   onApplyCustomRange,
   onResetRange,
 }) {
+
 
   const isCustom = rangePreset === "custom";
 
@@ -66,14 +64,27 @@ export default function TopBar({
             >
            <option value="currentWeek">Current week</option>
 
-            {statusTab === "upcoming" ? (
-              <option value="nextWeek">Next week</option>
-            ) : (
-              <option value="previousWeek">Previous week</option>
-            )}
+{statusTab === "upcoming" ? (
+  <>
+    <option value="nextWeek">Next week</option>
+    <option value="nextMonth">Next month</option>
+  </>
+) : statusTab === "completed" ? (
+  <>
+    <option value="previousWeek">Previous week</option>
+    <option value="previousMonth">Previous month</option>
+  </>
+) : (
+  // skipped (keep it consistent with completed unless you want different)
+  <>
+    <option value="previousWeek">Previous week</option>
+    <option value="previousMonth">Previous month</option>
+  </>
+)}
 
-            <option value="currentMonth">Current month</option>
-            <option value="custom">Custom</option>
+<option value="currentMonth">Current month</option>
+<option value="custom">Custom</option>
+
 
             </select>
           </div>
