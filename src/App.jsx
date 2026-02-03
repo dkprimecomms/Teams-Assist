@@ -16,6 +16,69 @@ function defaultRangeISO() {
   end.setDate(now.getDate() + 14);
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
+function startOfWeekMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0 Sun .. 6 Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfWeekSunday(d) {
+  const start = startOfWeekMonday(d);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function rangeFromPreset(preset) {
+  const now = new Date();
+
+  if (preset === "currentWeek") {
+    const start = startOfWeekMonday(now);
+    const end = endOfWeekSunday(now);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }
+
+  if (preset === "previousWeek") {
+    const startThisWeek = startOfWeekMonday(now);
+    const start = new Date(startThisWeek);
+    start.setDate(start.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }
+  if (preset === "nextWeek") {
+  const startThisWeek = startOfWeekMonday(now);
+  const start = new Date(startThisWeek);
+  start.setDate(start.getDate() + 7);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+
+  if (preset === "currentMonth") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }
+
+ 
+
+  // custom is handled separately
+  return defaultRangeISO();
+}
 
 export default function App() {
   const [statusTab, setStatusTab] = useState("upcoming");
@@ -26,7 +89,10 @@ export default function App() {
   const [meetingsError, setMeetingsError] = useState("");
 
   // ✅ Date range state (used by TopBar)
-  const [dateRange, setDateRange] = useState(() => defaultRangeISO());
+  // ✅ Relative range preset + active date range
+  const [rangePreset, setRangePreset] = useState("currentWeek");
+  const [dateRange, setDateRange] = useState(() => rangeFromPreset("currentWeek"));
+
 
   // ✅ Date order state (used by Sidebar toggle). Default: new → old
   const [sortOrder, setSortOrder] = useState("desc");
@@ -61,6 +127,24 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+  
+  useEffect(() => {
+  // Upcoming should not use previousWeek
+  if (statusTab === "upcoming" && rangePreset === "previousWeek") {
+    setRangePreset("nextWeek");
+    return;
+  }
+
+  // Non-upcoming tabs should not use nextWeek (optional but keeps UI consistent)
+  if (statusTab !== "upcoming" && rangePreset === "nextWeek") {
+    setRangePreset("previousWeek");
+  }
+}, [statusTab, rangePreset]);
+
+  useEffect(() => {
+  if (rangePreset === "custom") return; // custom uses explicit apply
+  setDateRange(rangeFromPreset(rangePreset));
+}, [rangePreset]);
 
   async function loadMeetingsPage({ cursor = null, resetPrev = false } = {}) {
     setLoadingMeetings(true);
@@ -338,16 +422,27 @@ export default function App() {
         {/* Main */}
         <div className="relative h-full min-h-0 overflow-hidden">
           <MainLayout
+            statusTab={statusTab}
             selected={selected}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             participantsOpen={participantsOpen}
             setParticipantsOpen={setParticipantsOpen}
             myEmail={myEmail}
+
+            rangePreset={rangePreset}
+            onChangeRangePreset={setRangePreset}
             dateRange={dateRange}
-            onApplyDateRange={(r) => setDateRange(r)}
-            onResetDateRange={() => setDateRange(defaultRangeISO())}
+            onApplyCustomRange={(r) => {
+              setRangePreset("custom");
+              setDateRange(r);
+            }}
+            onResetRange={() => {
+              setRangePreset("currentMonth");
+              setDateRange(rangeFromPreset("currentMonth"));
+            }}
           />
+
         </div>
       </div>
     </div>

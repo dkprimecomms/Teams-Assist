@@ -12,28 +12,36 @@ export default function MainLayout({
   setParticipantsOpen,
   myEmail,
 
-  // ✅ Date filter props
+  // ✅ NEW
+  statusTab,
+
+  rangePreset,
+  onChangeRangePreset,
   dateRange,
-  onApplyDateRange,
-  onResetDateRange,
+  onApplyCustomRange,
+  onResetRange,
 }) {
+
   const participants = selected?.participants || [];
 
   return (
     <main className="h-full min-h-0 p-3 lg:p-4 flex flex-col gap-3 overflow-hidden">
       <TopBar
+        statusTab={statusTab}
         onOpenSidebar={() => setSidebarOpen(true)}
+        rangePreset={rangePreset}
+        onChangeRangePreset={onChangeRangePreset}
         dateRange={dateRange}
-        onApplyDateRange={onApplyDateRange}
-        onResetDateRange={onResetDateRange}
+        onApplyCustomRange={onApplyCustomRange}
+        onResetRange={onResetRange}
       />
 
       <div
         className={[
           "grid grid-cols-1 gap-4 flex-1 min-h-0 overflow-hidden items-stretch",
           selected?.status === "upcoming" || selected?.status === "skipped"
-            ? "lg:grid-cols-[3fr_2fr]" // 60/40
-            : "lg:grid-cols-[1fr_280px]", // default
+            ? "lg:grid-cols-[3fr_2fr]"
+            : "lg:grid-cols-[1fr_280px]",
         ].join(" ")}
       >
         <div className="min-h-0 flex">
@@ -46,13 +54,11 @@ export default function MainLayout({
           />
         </div>
 
-        {/* Right rail only on lg+ */}
         <div className="min-h-0 hidden lg:flex">
           <RightRail selected={selected} />
         </div>
       </div>
 
-      {/* Participants bottom-sheet on <lg */}
       {participantsOpen && (
         <>
           <div
