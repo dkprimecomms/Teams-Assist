@@ -158,7 +158,7 @@ export default function App() {
 
 
   useEffect(() => {
-  if (rangePreset === "custom") return; // custom uses explicit apply
+  if (rangePreset === "custom") return; // custom uses explicit applyy
   setDateRange(rangeFromPreset(rangePreset));
 }, [rangePreset]);
 
