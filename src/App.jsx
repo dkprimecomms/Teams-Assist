@@ -7,6 +7,8 @@ import { fetchInvitees } from "./api/participantsApi";
 import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
 import { getTeamsUser } from "./api/teamsContext";
+import { getTeamsToken } from "./api/authApi";
+
 
 function defaultRangeISO() {
   const now = new Date();
@@ -140,6 +142,38 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+  
+  // ✅ Keep Teams token fresh while user stays on the page
+useEffect(() => {
+  let timer = null;
+
+  const refresh = async () => {
+    try {
+      // will refresh only when near expiry because authApi handles it
+      await getTeamsToken();
+    } catch {
+      // ignore; next attempt will retry
+    }
+  };
+
+  // Refresh once on mount
+  refresh();
+
+  // Refresh every 5 minutes (safe & light)
+  timer = setInterval(refresh, 5 * 60 * 1000);
+
+  // Also refresh when user returns to the tab
+  const onVisibility = () => {
+    if (document.visibilityState === "visible") refresh();
+  };
+  window.addEventListener("visibilitychange", onVisibility);
+
+  return () => {
+    if (timer) clearInterval(timer);
+    window.removeEventListener("visibilitychange", onVisibility);
+  };
+}, []);
+
   
   useEffect(() => {
   // Upcoming should not use past-only presets

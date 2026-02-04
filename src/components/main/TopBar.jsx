@@ -18,17 +18,33 @@ function MenuIcon() {
   );
 }
 
+function ChevronDown() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className="h-4 w-4 text-slate-500"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export default function TopBar({
   onOpenSidebar,
-  statusTab, // ✅ needed for tab-specific options
+  statusTab,
+
   rangePreset,
   onChangeRangePreset,
   dateRange,
   onApplyCustomRange,
   onResetRange,
 }) {
-
-
   const isCustom = rangePreset === "custom";
 
   const [from, setFrom] = React.useState(() => (dateRange?.startISO || "").slice(0, 10));
@@ -44,8 +60,9 @@ export default function TopBar({
   return (
     <header className="glass rounded-2xl border border-white/30 px-4 py-3 shadow-sm">
       <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        {/* LEFT: hamburger + relative filter */}
+        {/* LEFT */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+          {/* Mobile menu */}
           <button
             onClick={onOpenSidebar}
             className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-full glass shadow-md text-slate-700 self-start"
@@ -54,64 +71,57 @@ export default function TopBar({
             <MenuIcon />
           </button>
 
-          {/* ✅ Relative filter... */}
-          <div className="min-w-[220px]">
-            <label className="block text-[11px] text-slate-600 mb-1">Date range</label>
+          {/* Date range select */}
+          <div className="relative min-w-[240px]">
+            <label className="block text-[11px] text-slate-600 mb-1">
+              Date range
+            </label>
+
             <select
               value={rangePreset}
               onChange={(e) => onChangeRangePreset?.(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white/80 px-2 py-2 text-sm"
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white/80 px-4 py-3 pr-12 text-sm"
             >
-           <option value="currentWeek">Current week</option>
+              <option value="currentWeek">Current week</option>
 
-{statusTab === "upcoming" ? (
-  <>
-    <option value="nextWeek">Next week</option>
-    <option value="nextMonth">Next month</option>
-  </>
-) : statusTab === "completed" ? (
-  <>
-    <option value="previousWeek">Previous week</option>
-    <option value="previousMonth">Previous month</option>
-  </>
-) : (
-  // skipped (keep it consistent with completed unless you want different)
-  <>
-    <option value="previousWeek">Previous week</option>
-    <option value="previousMonth">Previous month</option>
-  </>
-)}
+              {statusTab === "upcoming" ? (
+                <>
+                  <option value="nextWeek">Next week</option>
+                  <option value="nextMonth">Next month</option>
+                </>
+              ) : (
+                <>
+                  <option value="previousWeek">Previous week</option>
+                  <option value="previousMonth">Previous month</option>
+                </>
+              )}
 
-<option value="currentMonth">Current month</option>
-<option value="custom">Custom</option>
-
-
+              <option value="currentMonth">Current month</option>
+              <option value="custom">Custom</option>
             </select>
+
+            {/* Proper arrow */}
+            <div className="pointer-events-none absolute right-4 top-[36px] flex items-center">
+              <ChevronDown />
+            </div>
           </div>
 
-          {/* ✅ Custom date inputs only when Custom selected */}
+          {/* Custom range */}
           {isCustom && (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] text-slate-600 mb-1">From</label>
-                  <input
-                    type="date"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-slate-600 mb-1">To</label>
-                  <input
-                    type="date"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
-                  />
-                </div>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5 text-sm"
+                />
               </div>
 
               <div className="flex gap-2">
@@ -119,17 +129,13 @@ export default function TopBar({
                   type="button"
                   onClick={() => {
                     if (!from || !to || invalidRange) return;
-                    const startISO = new Date(`${from}T00:00:00.000Z`).toISOString();
-                    const endISO = new Date(`${to}T23:59:59.999Z`).toISOString();
-                    onApplyCustomRange?.({ startISO, endISO });
+                    onApplyCustomRange({
+                      startISO: new Date(`${from}T00:00:00.000Z`).toISOString(),
+                      endISO: new Date(`${to}T23:59:59.999Z`).toISOString(),
+                    });
                   }}
                   disabled={!from || !to || invalidRange}
-                  className={[
-                    "rounded-xl border px-3 py-1.5 text-sm font-medium transition",
-                    !from || !to || invalidRange
-                      ? "border-slate-100 text-slate-300 bg-white/60 cursor-not-allowed"
-                      : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50",
-                  ].join(" ")}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 >
                   Apply
                 </button>
@@ -146,7 +152,7 @@ export default function TopBar({
           )}
         </div>
 
-        {/* RIGHT: logo */}
+        {/* RIGHT */}
         <div className="flex items-center justify-end">
           <img
             src={PrimeLogo}
