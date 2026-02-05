@@ -8,6 +8,7 @@ import { fetchMeetingsByStatus } from "./api/meetingsApi";
 import { fetchTranscript } from "./api/transcriptApi";
 import { getTeamsUser } from "./api/teamsContext";
 import { getTeamsToken } from "./api/authApi";
+import { logAppOpen } from "./api/logApi";
 
 
 function defaultRangeISO() {
@@ -142,7 +143,24 @@ export default function App() {
       cancelled = true;
     };
   }, []);
-  
+  // ✅ Log "app opened" once (non-blocking)
+useEffect(() => {
+  let cancelled = false;
+
+  (async () => {
+    try {
+      await logAppOpen();
+    } catch {
+      // do not block UI if logging fails
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+
   // ✅ Keep Teams token fresh while user stays on the page
 useEffect(() => {
   let timer = null;
